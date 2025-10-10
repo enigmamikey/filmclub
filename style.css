@@ -1,0 +1,12 @@
+:root {
+     --textColor: rgb(60, 167, 241); 
+     --backgroundColor: rgb(31,31,31);
+}
+
+body {
+     background: var(--backgroundColor);
+     color: var(--textColor);
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+}
