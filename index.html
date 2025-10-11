@@ -2,22 +2,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Film Club</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <h1></h1>
 
-    <div id="controls">
-        <button id="btn-signin">Sign in with Google dude!!!</button>
-        <button id="btn-signout", class="hidden">Sign out</button>
-    </div>
-    
-    <div id="user", class="hidden">
-        <div><strong id="user-name"></strong></div>
-        <div id="user-email"></div>
-    </div>
+    <div id="user-info">Not signed in</div>
+
+    <button id="login-btn">Sign in with Google dude!!!</button>
+    <button id="logout-btn", class="hidden">Log out</button>
 
     <script type="module" src="auth.js"></script>
     <script src="main.js"></script>
