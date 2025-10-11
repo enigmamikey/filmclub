@@ -1,1 +1,1 @@
-document.querySelector('h1').textContent = 'Film Club Dude!!! (title change time test bud)'
+document.querySelector('h1').textContent = 'Film Club Dude!!!'
