@@ -49,36 +49,41 @@ function updateUI(user) {
     window.currentUser = user
     if (user) {
         userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
-        loadData(); // 👈 fetch Supabase data here
+        loadFilmClubData(); // 👈 fetch Supabase data here
     }
 }
 
-async function loadData() {
-  console.log("Loading data from Supabase...");
-
+async function loadFilmClubData() {
   try {
-    const { data: rounds, error: roundsError } = await supabase.from('rounds').select('*');
-    const { data: members, error: membersError } = await supabase.from('members').select('*');
-    const { data: movies, error: moviesError } = await supabase.from('movies').select('*');
-    const { data: ratings, error: ratingsError } = await supabase.from('ratings').select('*');
+    // Run all four SELECTs in parallel
+    const [
+      { data: rounds, error: roundsError },
+      { data: members, error: membersError },
+      { data: movies, error: moviesError },
+      { data: ratings, error: ratingsError }
+    ] = await Promise.all([
+      supabase.from('rounds').select('*'),
+      supabase.from('members').select('*'),
+      supabase.from('movies').select('*'),
+      supabase.from('ratings').select('*')
+    ]);
 
-    if (roundsError || membersError || moviesError || ratingsError) {
-      console.error("Error loading data:", roundsError || membersError || moviesError || ratingsError);
-      return;
-    }
+    // Collect errors (if any)
+    const errors = [roundsError, membersError, moviesError, ratingsError].filter(e => e);
+    if (errors.length) throw errors;
 
-    console.log("✅ Data loaded successfully:");
-    console.log({ rounds, members, movies, ratings });
+    // Everything loaded successfully — one clean log
+    console.log("✅ Film Club data loaded:", {
+      rounds,
+      members,
+      movies,
+      ratings
+    });
 
-    // Store globally for now (you can refactor later)
-    window.filmClubData = { rounds, members, movies, ratings };
+    return { rounds, members, movies, ratings };
 
-    // Call a function in main.js to render or use this data
-    if (window.displayFilmClubData) {
-      window.displayFilmClubData(window.filmClubData);
-    }
-
-  } catch (err) {
-    console.error("Unexpected error loading data:", err);
+  } catch (error) {
+    console.error("❌ Error loading Film Club data:", error);
+    return null;
   }
 }
