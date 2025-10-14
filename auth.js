@@ -47,4 +47,38 @@ function updateUI(user) {
         logoutBtn.classList.add('hidden')
     }
     window.currentUser = user
+    if (user) {
+        userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
+        loadData(); // 👈 fetch Supabase data here
+    }
+}
+
+async function loadData() {
+  console.log("Loading data from Supabase...");
+
+  try {
+    const { data: rounds, error: roundsError } = await supabase.from('rounds').select('*');
+    const { data: members, error: membersError } = await supabase.from('members').select('*');
+    const { data: movies, error: moviesError } = await supabase.from('movies').select('*');
+    const { data: ratings, error: ratingsError } = await supabase.from('ratings').select('*');
+
+    if (roundsError || membersError || moviesError || ratingsError) {
+      console.error("Error loading data:", roundsError || membersError || moviesError || ratingsError);
+      return;
+    }
+
+    console.log("✅ Data loaded successfully:");
+    console.log({ rounds, members, movies, ratings });
+
+    // Store globally for now (you can refactor later)
+    window.filmClubData = { rounds, members, movies, ratings };
+
+    // Call a function in main.js to render or use this data
+    if (window.displayFilmClubData) {
+      window.displayFilmClubData(window.filmClubData);
+    }
+
+  } catch (err) {
+    console.error("Unexpected error loading data:", err);
+  }
 }
