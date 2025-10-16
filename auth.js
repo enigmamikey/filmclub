@@ -26,9 +26,18 @@ logoutBtn?.addEventListener('click', async() => {
     updateUI(null)
 })
 
+let dataLoaded = false;
 supabase.auth.onAuthStateChange((event, session) => {
-    updateUI(session?.user || null)
-})
+  if (session && !dataLoaded) {
+    loadAllData();
+    dataLoaded = true;
+  }
+});
+
+// this is the old one that loaded anytime we refocus the window
+// supabase.auth.onAuthStateChange((event, session) => {
+//     updateUI(session?.user || null)
+// })
 
 async function checkSession() {
     const {data} = await supabase.auth.getSession()
