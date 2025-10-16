@@ -49,41 +49,105 @@ function updateUI(user) {
     window.currentUser = user
     if (user) {
         userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
-        loadFilmClubData(); // 👈 fetch Supabase data here
+        loadAllData(); // 👈 fetch Supabase data here
     }
 }
 
-async function loadFilmClubData() {
+// --- Helper: fetch all rows from a Supabase table ---
+// for clean-up, consider putting this IN the function loadAllData
+async function fetchAllRows(tableName) {
+  const allData = [];
+  let from = 0;
+  const chunk = 1000;
+  let done = false;
+
+  while (!done) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('*')
+      .range(from, from + chunk - 1);
+
+    if (error) {
+      console.error(`Error fetching ${tableName}:`, error);
+      break;
+    }
+
+    allData.push(...data);
+    if (data.length < chunk) done = true;
+    from += chunk;
+  }
+
+  return allData;
+}
+
+// --- Load all tables in parallel ---
+async function loadAllData() {
   try {
-    // Run all four SELECTs in parallel
-    const [
-      { data: rounds, error: roundsError },
-      { data: members, error: membersError },
-      { data: movies, error: moviesError },
-      { data: ratings, error: ratingsError }
-    ] = await Promise.all([
-      supabase.from('rounds').select('*'),
-      supabase.from('members').select('*'),
-      supabase.from('movies').select('*'),
-      supabase.from('ratings').select('*')
+    const [rounds, members, movies, ratings] = await Promise.all([
+      fetchAllRows('rounds'),
+      fetchAllRows('members'),
+      fetchAllRows('movies'),
+      fetchAllRows('ratings'),
     ]);
 
-    // Collect errors (if any)
-    const errors = [roundsError, membersError, moviesError, ratingsError].filter(e => e);
-    if (errors.length) throw errors;
-
-    // Everything loaded successfully — one clean log
-    console.log("✅ Film Club data loaded:", {
-      rounds,
-      members,
-      movies,
-      ratings
+    console.log("✅ Data loaded successfully:", {
+      rounds: rounds.length,
+      members: members.length,
+      movies: movies.length,
+      ratings: ratings.length
     });
 
-    return { rounds, members, movies, ratings };
+    // Optional: make available globally
+    window.rounds = rounds;
+    window.members = members;
+    window.movies = movies;
+    window.ratings = ratings;
 
-  } catch (error) {
-    console.error("❌ Error loading Film Club data:", error);
-    return null;
+  } catch (err) {
+    console.error("Error loading data:", err);
   }
 }
+
+
+
+
+
+
+
+
+
+// old load function
+// async function loadFilmClubData() {
+//   try {
+//     // Run all four SELECTs in parallel
+//     const [
+//       { data: rounds, error: roundsError },
+//       { data: members, error: membersError },
+//       { data: movies, error: moviesError },
+//       { data: ratings, error: ratingsError }
+//     ] = await Promise.all([
+//       supabase.from('rounds').select('*'),
+//       supabase.from('members').select('*'),
+//       supabase.from('movies').select('*'),
+//       supabase.from('ratings').select('*')
+//     ]);
+
+//     // Collect errors (if any)
+//     const errors = [roundsError, membersError, moviesError, ratingsError].filter(e => e);
+//     if (errors.length) throw errors;
+
+//     // Everything loaded successfully — one clean log
+//     console.log("✅ Film Club data loaded:", {
+//       rounds,
+//       members,
+//       movies,
+//       ratings
+//     });
+
+//     return { rounds, members, movies, ratings };
+
+//   } catch (error) {
+//     console.error("❌ Error loading Film Club data:", error);
+//     return null;
+//   }
+// }
