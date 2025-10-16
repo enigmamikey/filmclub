@@ -58,7 +58,6 @@ function updateUI(user) {
     window.currentUser = user
     if (user) {
         userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
-        loadAllData(); // 👈 fetch Supabase data here
     }
 }
 
@@ -116,47 +115,3 @@ async function loadAllData() {
     console.error("Error loading data:", err);
   }
 }
-
-
-
-
-
-
-
-
-
-// old load function
-// async function loadFilmClubData() {
-//   try {
-//     // Run all four SELECTs in parallel
-//     const [
-//       { data: rounds, error: roundsError },
-//       { data: members, error: membersError },
-//       { data: movies, error: moviesError },
-//       { data: ratings, error: ratingsError }
-//     ] = await Promise.all([
-//       supabase.from('rounds').select('*'),
-//       supabase.from('members').select('*'),
-//       supabase.from('movies').select('*'),
-//       supabase.from('ratings').select('*')
-//     ]);
-
-//     // Collect errors (if any)
-//     const errors = [roundsError, membersError, moviesError, ratingsError].filter(e => e);
-//     if (errors.length) throw errors;
-
-//     // Everything loaded successfully — one clean log
-//     console.log("✅ Film Club data loaded:", {
-//       rounds,
-//       members,
-//       movies,
-//       ratings
-//     });
-
-//     return { rounds, members, movies, ratings };
-
-//   } catch (error) {
-//     console.error("❌ Error loading Film Club data:", error);
-//     return null;
-//   }
-// }
