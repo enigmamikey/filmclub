@@ -2,15 +2,16 @@ import {createClient} from "https://esm.sh/@supabase/supabase-js@2"
 
 const SUPABASE_URL = 'https://bnsydsxrhzlyptwyvjll.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwOTgzMzcsImV4cCI6MjA3NTY3NDMzN30.6isq1xIJS-y1opkixbP6CyX645uxsZGEBR0nkQJ3SEA'
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-
 window.supabase = supabase
 
 const loginBtn = document.querySelector('#login-btn')
 const logoutBtn = document.querySelector('#logout-btn')
 const userDisplay = document.querySelector('#user-info')
 
+let dataLoaded = false
+
+// Restore session on page load
 checkSession()
 
 loginBtn?.addEventListener('click', async() => {
@@ -26,18 +27,15 @@ logoutBtn?.addEventListener('click', async() => {
     updateUI(null)
 })
 
-let dataLoaded = false;
 supabase.auth.onAuthStateChange((event, session) => {
-  if (session && !dataLoaded) {
-    loadAllData();
-    dataLoaded = true;
-  }
-});
+  const user = session?.user || null
+  updateUI(user)
 
-// this is the old one that loaded anytime we refocus the window
-// supabase.auth.onAuthStateChange((event, session) => {
-//     updateUI(session?.user || null)
-// })
+  if (user && !dataLoaded) {
+    loadAllData()
+    dataLoaded = true
+  }
+})
 
 async function checkSession() {
     const {data} = await supabase.auth.getSession()
@@ -59,33 +57,6 @@ function updateUI(user) {
     if (user) {
         userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
     }
-}
-
-// --- Helper: fetch all rows from a Supabase table ---
-// for clean-up, consider putting this IN the function loadAllData
-async function fetchAllRows(tableName) {
-  const allData = [];
-  let from = 0;
-  const chunk = 1000;
-  let done = false;
-
-  while (!done) {
-    const { data, error } = await supabase
-      .from(tableName)
-      .select('*')
-      .range(from, from + chunk - 1);
-
-    if (error) {
-      console.error(`Error fetching ${tableName}:`, error);
-      break;
-    }
-
-    allData.push(...data);
-    if (data.length < chunk) done = true;
-    from += chunk;
-  }
-
-  return allData;
 }
 
 // --- Load all tables in parallel ---
@@ -113,5 +84,31 @@ async function loadAllData() {
 
   } catch (err) {
     console.error("Error loading data:", err);
+  }
+
+  // --- Helper: fetch all rows from a Supabase table ---
+  async function fetchAllRows(tableName) {
+    const allData = [];
+    let from = 0;
+    const chunk = 1000;
+    let done = false;
+
+    while (!done) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .range(from, from + chunk - 1);
+
+      if (error) {
+        console.error(`Error fetching ${tableName}:`, error);
+        break;
+      }
+
+      allData.push(...data);
+      if (data.length < chunk) done = true;
+      from += chunk;
+    }
+
+    return allData;
   }
 }
