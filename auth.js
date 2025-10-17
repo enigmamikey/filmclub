@@ -82,6 +82,8 @@ async function loadAllData() {
     window.movies = movies;
     window.ratings = ratings;
 
+    window.dispatchEvent(new Event('dataLoaded'))
+
   } catch (err) {
     console.error("Error loading data:", err);
   }
