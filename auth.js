@@ -29,6 +29,7 @@ logoutBtn?.addEventListener('click', async() => {
 })
 
 supabase.auth.onAuthStateChange((event, session) => {
+  alert('onAuthStateChange')
   const user = session?.user || null
   updateUI(user)
 
