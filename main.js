@@ -3,25 +3,15 @@
 document.querySelector('h1').textContent = 'Film Club'
 let sortedRounds
 
-window.addEventListener('beforeunload', async (event) => {
-  await logOutUser()
+window.addEventListener('load', async () => {
+  await supabase.auth.signOut()
+  console.log('user signed out on page load')
 })
 
 window.addEventListener('dataLoaded', () => {
   renderRoundButtons()
   displayRoundData(sortedRounds[sortedRounds.length - 1])
 })
-
-function clearUserData() {
-  document.querySelector('#round-buttons-container').innerHTML = ''
-  document.querySelector('#round-title').innerHTML = ''
-  document.querySelector('#round-data-container').innerHTML = ''
-}
-
-async function logOutUser() {
-  await supabase.auth.signOut()
-  clearUserData()
-}
 
 function displayRoundData(round) {
   const container = document.querySelector('#round-data-container')
