@@ -19,7 +19,7 @@ let dataLoaded = false
 loginBtn?.addEventListener('click', async() => {
     const {error} = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: {redirectTo: window.location.origin},
+        options: {redirectTo: window.location.href, flowType: "pkce"},
     })
     if (error) console.error("Login error:", error.message)
 })
