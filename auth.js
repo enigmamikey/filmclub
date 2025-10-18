@@ -11,8 +11,8 @@ const userDisplay = document.querySelector('#user-info')
 
 let dataLoaded = false
 
-// Restore session on page load
-checkSession()
+// Restore session on page load - keep this in if you want people to stay logged in after refreshing or closing the page
+// checkSession()
 
 loginBtn?.addEventListener('click', async() => {
     const {error} = await supabase.auth.signInWithOAuth({

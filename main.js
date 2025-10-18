@@ -5,7 +5,6 @@ let sortedRounds
 
 window.addEventListener('load', async () => {
   await supabase.auth.signOut()
-  console.log('user signed out on page load')
 })
 
 window.addEventListener('dataLoaded', () => {
