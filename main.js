@@ -3,9 +3,9 @@
 document.querySelector('h1').textContent = 'Film Club'
 let sortedRounds
 
-window.addEventListener('load', async () => {
-  await supabase.auth.signOut()
-})
+// window.addEventListener('load', async () => {
+//   await supabase.auth.signOut()
+// })
 
 window.addEventListener('dataLoaded', () => {
   renderRoundButtons()
