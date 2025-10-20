@@ -1,3 +1,8 @@
+// to do list
+// 1. Add an extra row showing who picked each movie - there is a chatGPT suggestion on how to do this. make sure that afterwards you only have one header at the top of the columns (or see if this even matters)
+
+// 2. We should add a button that allows a user to add a movie BUT it should only allow them to add a movie in the spot where thier pick for the round will go.
+
 // Type live-server --port=3000 into gitBash to test all this on a local server
 
 document.querySelector('h1').textContent = 'Film Club'
@@ -111,14 +116,22 @@ function enterEditMode(member, round, roundMovies) {
       container.innerHTML = ''
       displayRoundData(round)
       roundBtns.classList.remove('hidden')
-      logoutBtn.classList.remove('hidden')
+      // logoutBtn.classList.remove('hidden')
     })
     submitBtn.addEventListener('click', async () => {
       const updates = editableCells.map(td => {
         const input = td.querySelector('input')
-        const score = parseFloat(input.value)
+        let score = parseFloat(input.value)
+        if (isNaN(score)) {
+          return null
+        }
+        score = Math.min(Math.max(score,1),10)
+        score = Math.floor(score*10)/10
+        if (score % 1 == 0) {
+          score = score.toFixed(0)
+        }
         const existing = ratings.find(r => r.movie_id === td.dataset.movieID && r.membership_id === member.membership_id)
-        if (!isNaN(score) && existing.score != score) {
+        if (existing.score != score) {
           return {
             movie_id: td.dataset.movieID,
             membership_id: member.membership_id,
@@ -128,6 +141,7 @@ function enterEditMode(member, round, roundMovies) {
         return null
       }).filter(Boolean)
       
+      console.log(`✅ Submitted ${updates.length} ratings`)
       for (const update of updates) {
         const {error} = await supabase
           .from('ratings')
@@ -138,10 +152,10 @@ function enterEditMode(member, round, roundMovies) {
           console.error("Error updating ratings:", error)
           alert('failed to save ratings')
         } else {
-          console.log(`✅ Submitted ${updates.length} ratings`)
+          ratings.find(r => r.movie_id === update.movie_id && r.membership_id === update.membership_id).score = update.score
           container.innerHTML = ''
           roundBtns.classList.remove('hidden')
-          logoutBtn.classList.remove('hidden')
+          // logoutBtn.classList.remove('hidden')
           displayRoundData(round)
         }
       }

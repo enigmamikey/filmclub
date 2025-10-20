@@ -46,7 +46,7 @@ function updateUI(user) {
     if (user) {
         userDisplay.textContent = `Signed in as ${user.email}`
         loginBtn.classList.add('hidden')
-        logoutBtn.classList.remove('hidden')
+        // logoutBtn.classList.remove('hidden')
     }
     else {
         userDisplay.textContent = "Not signed in"
