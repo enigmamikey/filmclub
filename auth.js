@@ -12,7 +12,7 @@ const userDisplay = document.querySelector('#user-info')
 let dataLoaded = false
 
 // Restore session on page load
-checkSession()
+checkSession()  
 
 loginBtn?.addEventListener('click', async() => {
     const {error} = await supabase.auth.signInWithOAuth({
