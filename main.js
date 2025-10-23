@@ -1,10 +1,3 @@
-// to do list
-// 1. Add an extra row showing who picked each movie - there is a chatGPT suggestion on how to do this. make sure that afterwards you only have one header at the top of the columns (or see if this even matters)
-
-// 2. We should add a button that allows a user to add a movie BUT it should only allow them to add a movie in the spot where thier pick for the round will go.
-
-// Type live-server --port=3000 into gitBash to test all this on a local server
-
 document.querySelector('h1').textContent = 'Film Club'
 let sortedRounds
 
@@ -30,17 +23,27 @@ function displayRoundData(round) {
   const table = document.createElement('table')
   table.classList.add('ratings-table')
 
-  const headerRow = document.createElement('tr')
-  headerRow.appendChild(document.createElement('th'))
+  const pickerRow = document.createElement('tr')
+  pickerRow.appendChild(document.createElement('th'))
+  pickerRow.id = 'pickerRow'
+  roundMovies.forEach((movie, i) => {
+    const th = document.createElement('th')
+    const picker = roundMembers.find((m, i, a) => m.membership_id == movie.membership_id)
+    th.textContent = `Week ${i+1} - ${picker.first_name}`
+    pickerRow.appendChild(th)
+  })
+  table.appendChild(pickerRow)
+
+  const movieRow = document.createElement('tr')
+  movieRow.appendChild(document.createElement('th'))
+  movieRow.id = 'movieRow'
   roundMovies.forEach(movie => {
     const th = document.createElement('th')
     th.textContent = movie.title || ''
-    headerRow.appendChild(th)
+    movieRow.appendChild(th)
   })
-  table.appendChild(headerRow)
-
+  table.appendChild(movieRow)
   const currentMember = roundMembers.find(m => m.email === window.currentUser?.email)
-
   roundMembers.forEach(member => {
     const tr = document.createElement('tr')
     const nameCell = document.createElement('th')
@@ -63,23 +66,138 @@ function displayRoundData(round) {
 
   if (currentMember) {
     const rateBtn = document.createElement('button')
+    const addMovieBtn = document.createElement('button')
     rateBtn.textContent = 'Rate My Movies'
-    rateBtn.classList.add('action-btn')
+    addMovieBtn.textContent = 'Add My Movie'
+    rateBtn.id = 'rate-btn'
+    addMovieBtn.id = 'addMovie-btn'
     container.appendChild(rateBtn)
+    container.appendChild(addMovieBtn)
 
     rateBtn.addEventListener('click', () => {
       enterEditMode(currentMember,round,roundMovies)
     })
+
+    addMovieBtn.addEventListener('click', () => {
+      enterEditMovieMode(currentMember,round,roundMovies)
+    })
   }
+}
+
+function enterEditMovieMode(member,round,roundMovies) {
+  console.log(`Entering edit movie mode for ${member.first_name}`)
+  const table = document.querySelector('.ratings-table')
+  const rateBtn = document.querySelector('#rate-btn')
+  const addMovieBtn = document.querySelector('#addMovie-btn')
+  const roundBtns = document.querySelector('#round-buttons-container')
+  const logoutBtn = document.querySelector('#logout-btn')
+  rateBtn.classList.add('hidden')
+  addMovieBtn.classList.add('hidden')
+  roundBtns.classList.add('hidden')
+  logoutBtn.classList.add('hidden')
+
+  const pickerCells = [...document.querySelector('#pickerRow').querySelectorAll('th')]
+  const movieCells = [...document.querySelector('#movieRow').querySelectorAll('th')]
+
+  // start here - there is an error
+  const cell = movieCells.find((v,i) => pickerCells[i].includes(member.first_name))
+
+  console.log(cell)
+
+  // const cell = [...table.querySelectorAll('th')]
+  //   .find(?)
+  // ? Should consist of the following two things
+  // 1. The 'th' is a child of 'tr' with id = 'pickerRow'
+  // 2. The 'th' in the cell directly above it should be a string that includes member.first_name
+
+  // const row = [...table.querySelectorAll('tr')]
+  //   .find(tr => tr.querySelector('th')?.textContent === member.first_name)
+
+  // const editableCells = [...row.querySelectorAll('td')]
+  //   .filter(td => {
+  //     const movieID = td.dataset.movieID
+  //     const movie = roundMovies.find(m => m.movie_id === movieID)
+  //     return movie && movie.title && movie.title.trim() != ''
+  //   })
+  //   editableCells.forEach(td => {
+  //     const currentValue = td.textContent === '-' ? '': td.textContent
+  //     const input = document.createElement('input')
+  //     input.type = 'number'
+  //     input.min = 1
+  //     input.max = 10
+  //     input.value = currentValue
+  //     input.classList.add('rating-input')
+  //     td.textContent = ''
+  //     td.appendChild(input)
+  //   })
+  //   const submitBtn = document.createElement('button')
+  //   submitBtn.textContent = 'Submit Ratings'
+  //   submitBtn.classList.add('action-btn', 'submit-btn')
+  //   const cancelBtn = document.createElement('button')
+  //   cancelBtn.textContent = 'Cancel'
+  //   cancelBtn.classList.add('action-btn', 'cancel-btn')
+  //   const container = document.querySelector('#round-data-container')
+  //   container.appendChild(submitBtn)
+  //   container.appendChild(cancelBtn)
+  //   cancelBtn.addEventListener('click', () => {
+  //     container.innerHTML = ''
+  //     displayRoundData(round)
+  //     roundBtns.classList.remove('hidden')
+  //     // logoutBtn.classList.remove('hidden')
+  //   })
+  //   submitBtn.addEventListener('click', async () => {
+  //     const updates = editableCells.map(td => {
+  //       const input = td.querySelector('input')
+  //       let score = parseFloat(input.value)
+  //       if (isNaN(score)) {
+  //         return null
+  //       }
+  //       score = Math.min(Math.max(score,1),10)
+  //       score = Math.floor(score*10)/10
+  //       if (score % 1 == 0) {
+  //         score = score.toFixed(0)
+  //       }
+  //       const existing = ratings.find(r => r.movie_id === td.dataset.movieID && r.membership_id === member.membership_id)
+  //       if (existing.score != score) {
+  //         return {
+  //           movie_id: td.dataset.movieID,
+  //           membership_id: member.membership_id,
+  //           score: score
+  //         }
+  //       }
+  //       return null
+  //     }).filter(Boolean)
+      
+  //     console.log(`✅ Submitted ${updates.length} ratings`)
+  //     for (const update of updates) {
+  //       const {error} = await supabase
+  //         .from('ratings')
+  //         .update({score: update.score})
+  //         .eq('movie_id', update.movie_id)
+  //         .eq('membership_id', update.membership_id)
+  //       if (error) {
+  //         console.error("Error updating ratings:", error)
+  //         alert('failed to save ratings')
+  //       } else {
+  //         ratings.find(r => r.movie_id === update.movie_id && r.membership_id === update.membership_id).score = update.score
+  //         container.innerHTML = ''
+  //         roundBtns.classList.remove('hidden')
+  //         // logoutBtn.classList.remove('hidden')
+  //         displayRoundData(round)
+  //       }
+  //     }
+  //   })    
 }
 
 function enterEditMode(member, round, roundMovies) {  
   console.log(`Entering edit mode for ${member.first_name}`)
   const table = document.querySelector('.ratings-table')
-  const rateBtn = document.querySelector('.action-btn')
+  const rateBtn = document.querySelector('#rate-btn')
+  const addMovieBtn = document.querySelector('#addMovie-btn')
   const roundBtns = document.querySelector('#round-buttons-container')
   const logoutBtn = document.querySelector('#logout-btn')
   rateBtn.classList.add('hidden')
+  addMovieBtn.classList.add('hidden')
   roundBtns.classList.add('hidden')
   logoutBtn.classList.add('hidden')
 

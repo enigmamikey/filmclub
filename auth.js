@@ -14,7 +14,7 @@ let dataLoaded = false
 // Restore session on page load
 checkSession()  
 
-loginBtn?.addEventListener('click', async() => {
+loginBtn.addEventListener('click', async() => {
     const {error} = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {redirectTo: window.location.origin},
@@ -22,7 +22,7 @@ loginBtn?.addEventListener('click', async() => {
     if (error) console.error("Login error:", error.message)
 })
 
-logoutBtn?.addEventListener('click', async() => {
+logoutBtn.addEventListener('click', async() => {
     await supabase.auth.signOut()
     updateUI(null)
 })
@@ -44,7 +44,6 @@ async function checkSession() {
 
 function updateUI(user) {
     if (user) {
-        userDisplay.textContent = `Signed in as ${user.email}`
         loginBtn.classList.add('hidden')
         // logoutBtn.classList.remove('hidden')
     }
