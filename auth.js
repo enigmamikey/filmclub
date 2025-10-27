@@ -14,29 +14,6 @@ let dataLoaded = false
 // Restore session on page load
 checkSession()  
 
-loginBtn.addEventListener('click', async() => {
-    const {error} = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {redirectTo: window.location.origin},
-    })
-    if (error) console.error("Login error:", error.message)
-})
-
-logoutBtn.addEventListener('click', async() => {
-    await supabase.auth.signOut()
-    updateUI(null)
-})
-
-supabase.auth.onAuthStateChange((event, session) => {
-  const user = session?.user || null
-  updateUI(user)
-
-  if (user && !dataLoaded) {
-    loadAllData()
-    dataLoaded = true
-  }
-})
-
 async function checkSession() {
     const {data} = await supabase.auth.getSession()
     updateUI(data.session?.user || null)
@@ -57,6 +34,19 @@ function updateUI(user) {
         userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
     }
 }
+
+loginBtn.addEventListener('click', async() => {
+    const {error} = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {redirectTo: window.location.origin},
+    })
+    if (error) console.error("Login error:", error.message)
+})
+
+logoutBtn.addEventListener('click', async() => {
+    await supabase.auth.signOut()
+    updateUI(null)
+})
 
 // --- Load all tables in parallel ---
 async function loadAllData() {
@@ -113,3 +103,13 @@ async function loadAllData() {
     return allData;
   }
 }
+
+supabase.auth.onAuthStateChange((event, session) => {
+  const user = session?.user || null
+  updateUI(user)
+
+  if (user && !dataLoaded) {
+    loadAllData()
+    dataLoaded = true
+  }
+})
