@@ -1,6 +1,6 @@
 # Film Club
 
-Film Club is a private web application designed to manage a small, invitation-only movie club. Members participate in themed “rounds,” nominate films and rate each other’s selections, with all data persisted and managed through a backend database.
+Film Club is a private group that commisioned a paid project for a web application with real users designed to manage a small, invitation-only movie club. Members participate in themed “rounds,” nominate films and rate each other’s selections, with all data persisted and managed through a backend database.
 
 This project was built as a real internal tool for an active group and is currently under continued development.
 
