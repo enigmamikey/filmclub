@@ -1,7 +1,7 @@
-document.querySelector('h1').textContent = 'Film Club'
-let sortedRounds
-const roundBtnsContainer = document.querySelector('#round-buttons-container')
-const roundDataContainer = document.querySelector('#round-data-container')
+// document.querySelector('h1').textContent = 'Film Club'
+// let sortedRounds
+// const roundBtnsContainer = document.querySelector('#round-buttons-container')
+// const roundDataContainer = document.querySelector('#round-data-container')
 
 
 
