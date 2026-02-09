@@ -19,7 +19,7 @@ const userDisplay = document.querySelector('#user-info')
 let dataLoaded = false
 
 // Restore session on page load
-checkSession()  
+
 
 loginBtn.addEventListener('click', async() => {
     const {error} = await supabase.auth.signInWithOAuth({
@@ -34,15 +34,40 @@ logoutBtn.addEventListener('click', async() => {
     updateUI(null)
 })
 
-supabase.auth.onAuthStateChange((event, session) => {
-  const user = session?.user || null
-  updateUI(user)
+// After you create supabase + define updateUI/loadAllData/dataLoaded...
 
-  if (user && !dataLoaded) {
-    loadAllData()
-    dataLoaded = true
+supabase.auth.onAuthStateChange(async (event, session) => {
+  console.log("AUTH EVENT:", event, "session?", !!session);
+
+  const user = session?.user ?? null;
+  updateUI(user);
+
+  // This fires on page load after Supabase finishes initializing
+  if (event === "INITIAL_SESSION") {
+    if (user && !dataLoaded) {
+      await loadAllData();
+      dataLoaded = true;
+
+      // Optional: clean the URL so tokens aren't sitting in the hash
+      // (nice-to-have; not required for correctness)
+      if (window.location.hash.includes("access_token=")) {
+        history.replaceState(null, "", window.location.pathname);
+      }
+    }
+    return;
   }
-})
+
+  // Keep these for later changes
+  if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && user && !dataLoaded) {
+    await loadAllData();
+    dataLoaded = true;
+  }
+
+  if (event === "SIGNED_OUT") {
+    dataLoaded = false;
+  }
+});
+
 
 async function checkSession() {
   const { data, error } = await supabase.auth.getSession();
