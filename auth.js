@@ -1,7 +1,7 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2"
 
 const SUPABASE_URL = 'https://bnsydsxrhzlyptwyvjll.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDM5OTM5OCwiZXhwIjoyMDg1NzU5Mzk4fQ.sgv62Hip33ljLWFkZt60nr64u-UfqNG9_S3luX6u0EU'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwOTgzMzcsImV4cCI6MjA3NTY3NDMzN30.6isq1xIJS-y1opkixbP6CyX645uxsZGEBR0nkQJ3SEA'
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 window.supabase = supabase
 
@@ -13,6 +13,29 @@ let dataLoaded = false
 
 // Restore session on page load
 checkSession()  
+
+loginBtn.addEventListener('click', async() => {
+    const {error} = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {redirectTo: window.location.origin},
+    })
+    if (error) console.error("Login error:", error.message)
+})
+
+logoutBtn.addEventListener('click', async() => {
+    await supabase.auth.signOut()
+    updateUI(null)
+})
+
+supabase.auth.onAuthStateChange((event, session) => {
+  const user = session?.user || null
+  updateUI(user)
+
+  if (user && !dataLoaded) {
+    loadAllData()
+    dataLoaded = true
+  }
+})
 
 async function checkSession() {
     const {data} = await supabase.auth.getSession()
@@ -34,19 +57,6 @@ function updateUI(user) {
         userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
     }
 }
-
-loginBtn.addEventListener('click', async() => {
-    const {error} = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {redirectTo: window.location.origin},
-    })
-    if (error) console.error("Login error:", error.message)
-})
-
-logoutBtn.addEventListener('click', async() => {
-    await supabase.auth.signOut()
-    updateUI(null)
-})
 
 // --- Load all tables in parallel ---
 async function loadAllData() {
@@ -103,13 +113,3 @@ async function loadAllData() {
     return allData;
   }
 }
-
-supabase.auth.onAuthStateChange((event, session) => {
-  const user = session?.user || null
-  updateUI(user)
-
-  if (user && !dataLoaded) {
-    loadAllData()
-    dataLoaded = true
-  }
-})

@@ -16,7 +16,7 @@ th, td {
      padding: 8px;
 }
 
-#round-data-container {
+.ratings-table {
      border-collapse: collapse;
      margin-top: 1 rem;
      width: 100%;
@@ -27,3 +27,7 @@ th, td {
 .hidden {
      display: none;
 }
+
+/* .round-btn {} */
+/* .action-btn {} */
+/* .submit-btn {} */
