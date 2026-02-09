@@ -38,9 +38,19 @@ supabase.auth.onAuthStateChange((event, session) => {
 })
 
 async function checkSession() {
-    const {data} = await supabase.auth.getSession()
-    updateUI(data.session?.user || null)
+  const { data, error } = await supabase.auth.getSession();
+  if (error) console.error("getSession error:", error);
+
+  const user = data.session?.user || null;
+  updateUI(user);
+
+  // ✅ NEW: if already signed in on refresh, load data immediately
+  if (user && !dataLoaded) {
+    await loadAllData();
+    dataLoaded = true;
+  }
 }
+
 
 function updateUI(user) {
     if (user) {
