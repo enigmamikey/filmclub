@@ -1,7 +1,8 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2"
 
 const SUPABASE_URL = 'https://bnsydsxrhzlyptwyvjll.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAwOTgzMzcsImV4cCI6MjA3NTY3NDMzN30.6isq1xIJS-y1opkixbP6CyX645uxsZGEBR0nkQJ3SEA'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzOTkzOTgsImV4cCI6MjA4NTc1OTM5OH0.s0M4Ftsu8JtIxXEfDuMxfw3j9rtCV5uQvOYtYQznm1c'
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     flowType: 'implicit',          // <-- add this
