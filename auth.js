@@ -86,8 +86,6 @@ function updateUI(user) {
 
 // --- Load all tables in parallel ---
 async function loadAllData() {
-console.log("loadAllData() starting");
-
   try {
     console.log("loadAllData() starting");
 
@@ -130,12 +128,12 @@ console.log("loadAllData() starting");
       const { data, error } = await supabase
         .from(tableName)
         .select('*')
-        .range(from, from + chunk - 1);
+        .range(from, to);
 
-      if (error) {
-        console.error(`Error fetching ${tableName}:`, error);
-        break;
-      }
+      console.log("fetchAllRows:", tableName, "range", from, to, "rows", data?.length, "error", error);
+
+      if (error) throw error;
+    }
 
       allData.push(...data);
       if (data.length < chunk) done = true;
@@ -144,7 +142,6 @@ console.log("loadAllData() starting");
 
     return allData;
   }
-}
 
 (async () => {
   const { data: { session } } = await supabase.auth.getSession();
