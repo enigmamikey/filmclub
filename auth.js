@@ -12,17 +12,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-
 window.supabase = supabase
 
 const loginBtn = document.querySelector('#login-btn')
 const logoutBtn = document.querySelector('#logout-btn')
 const userDisplay = document.querySelector('#user-info')
-
-let dataLoaded = false
-
-// Restore session on page load
-
 
 loginBtn.addEventListener('click', async() => {
     const {error} = await supabase.auth.signInWithOAuth({
@@ -37,34 +31,37 @@ logoutBtn.addEventListener('click', async() => {
     updateUI(null)
 })
 
-// After you create supabase + define updateUI/loadAllData/dataLoaded...
-
-checkSession();
+let dataLoaded = false;
 
 supabase.auth.onAuthStateChange(async (event, session) => {
-  const user = session?.user || null;
+  const user = session?.user ?? null;
   updateUI(user);
 
-  if (user && !dataLoaded) {
-    await loadAllData();
-    dataLoaded = true;
+  // This fires on every page load after Supabase finishes restoring session from storage.
+  if (event === "INITIAL_SESSION") {
+    if (user) {
+      await loadAllData();
+      dataLoaded = true;
+    } else {
+      dataLoaded = false;
+    }
+    return;
+  }
+
+  // When the user actively signs in (or token refreshes) later
+  if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && user) {
+    if (!dataLoaded) {
+      await loadAllData();
+      dataLoaded = true;
+    }
+    return;
+  }
+
+  if (event === "SIGNED_OUT") {
+    dataLoaded = false;
+    // optional: clear UI/data if you want
   }
 });
-
-async function checkSession() {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) console.error("getSession error:", error);
-
-  const user = data.session?.user || null;
-  updateUI(user);
-
-  // ✅ NEW: if already signed in on refresh, load data immediately
-  if (user && !dataLoaded) {
-    await loadAllData();
-    dataLoaded = true;
-  }
-}
-
 
 function updateUI(user) {
     if (user) {
@@ -137,5 +134,3 @@ async function loadAllData() {
     return allData;
   }
 }
-
-checkSession();
