@@ -2,7 +2,7 @@ console.log("AUTH VERSION: 2026-02-11-A");
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-console.log("auth.js loaded");
+console.log("auth.js loaded - xxxxxx");
 
 // ---- Supabase client ----
 const SUPABASE_URL = "https://bnsydsxrhzlyptwyvjll.supabase.co";
