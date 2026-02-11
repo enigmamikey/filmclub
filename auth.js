@@ -1,149 +1,169 @@
-import {createClient} from "https://esm.sh/@supabase/supabase-js@2"
+console.log("AUTH VERSION: 2026-02-11-A");
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 console.log("auth.js loaded");
 
-const SUPABASE_URL = 'https://bnsydsxrhzlyptwyvjll.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzOTkzOTgsImV4cCI6MjA4NTc1OTM5OH0.s0M4Ftsu8JtIxXEfDuMxfw3j9rtCV5uQvOYtYQznm1c'
+// ---- Supabase client ----
+const SUPABASE_URL = "https://bnsydsxrhzlyptwyvjll.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzOTkzOTgsImV4cCI6MjA4NTc1OTM5OH0.s0M4Ftsu8JtIxXEfDuMxfw3j9rtCV5uQvOYtYQznm1c";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    flowType: 'implicit',          // <-- add this
+    flowType: "pkce",
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
   },
 });
 
-window.supabase = supabase
+window.supabase = supabase;
 
-const loginBtn = document.querySelector('#login-btn')
-const logoutBtn = document.querySelector('#logout-btn')
-const userDisplay = document.querySelector('#user-info')
+// ---- DOM ----
+const loginBtn = document.querySelector("#login-btn");
+const logoutBtn = document.querySelector("#logout-btn");
+const userDisplay = document.querySelector("#user-info");
 
-loginBtn.addEventListener('click', async() => {
-    const {error} = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {redirectTo: window.location.origin},
-    })
-    if (error) console.error("Login error:", error.message)
-})
-
-logoutBtn.addEventListener('click', async() => {
-    await supabase.auth.signOut()
-    updateUI(null)
-})
-
-let dataLoaded = false;
-
-console.log("registering onAuthStateChange");
-
-supabase.auth.onAuthStateChange(async (event, session) => {
-  console.log("AUTH EVENT:", event, "hasSession:", !!session);
-  const user = session?.user ?? null;
-  updateUI(user);
-
-  // This fires on every page load after Supabase finishes restoring session from storage.
-  if (event === "INITIAL_SESSION") {
-    if (user) {
-      await loadAllData();
-      dataLoaded = true;
-    } else {
-      dataLoaded = false;
-    }
-    return;
-  }
-
-  // When the user actively signs in (or token refreshes) later
-  if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && user) {
-    if (!dataLoaded) {
-      await loadAllData();
-      dataLoaded = true;
-    }
-    return;
-  }
-
-  if (event === "SIGNED_OUT") {
-    dataLoaded = false;
-    // optional: clear UI/data if you want
-  }
-});
-
+// ---- UI (logout NEVER shown) ----
 function updateUI(user) {
-    if (user) {
-        loginBtn.classList.add('hidden')
-        // logoutBtn.classList.remove('hidden')
-    }
-    else {
-        userDisplay.textContent = "Not signed in"
-        loginBtn.classList.remove('hidden')
-        logoutBtn.classList.add('hidden')
-    }
-    window.currentUser = user
-    if (user) {
-        userDisplay.textContent = `Hello, ${user.user_metadata.full_name || user.email}`;
-    }
+  window.currentUser = user ?? null;
+
+  // logout button stays hidden permanently (per your rule)
+  if (logoutBtn) logoutBtn.classList.add("hidden");
+
+  if (!user) {
+    userDisplay.textContent = "Not signed in";
+    loginBtn.classList.remove("hidden");
+    return;
+  }
+
+  const name = user.user_metadata?.full_name || user.email;
+  userDisplay.textContent = `Hello, ${name}`;
+  loginBtn.classList.add("hidden");
 }
 
-// --- Load all tables in parallel ---
-async function loadAllData() {
-  try {
-    console.log("loadAllData() starting");
+// ---- Data loading ----
+async function fetchAllRows(tableName) {
+  const all = [];
+  const chunk = 1000;
+  let from = 0;
 
+  while (true) {
+    const to = from + chunk - 1; // ✅ FIX: define `to`
+    const { data, error } = await supabase.from(tableName).select("*").range(from, to);
+
+    if (error) throw error;
+
+    const rows = data || [];
+    all.push(...rows);
+
+    if (rows.length < chunk) break;
+    from += chunk;
+  }
+
+  return all;
+}
+
+async function loadAllData() {
+  console.log("loadAllData() starting");
+
+  try {
     console.log("Fetching rounds...");
-    const rounds = await fetchAllRows('rounds');
-    console.log("Fetched rounds:", rounds.length);
+    const rounds = await fetchAllRows("rounds");
 
     console.log("Fetching members...");
-    const members = await fetchAllRows('members');
-    console.log("Fetched members:", members.length);
+    const members = await fetchAllRows("members");
 
     console.log("Fetching movies...");
-    const movies = await fetchAllRows('movies');
-    console.log("Fetched movies:", movies.length);
+    const movies = await fetchAllRows("movies");
 
     console.log("Fetching ratings...");
-    const ratings = await fetchAllRows('ratings');
-    console.log("Fetched ratings:", ratings.length);
+    const ratings = await fetchAllRows("ratings");
 
-    console.log("✅ Data loaded successfully:", { rounds: rounds.length, members: members.length, movies: movies.length, ratings: ratings.length });
-
+    // ✅ Store globally (no `allData` variable anywhere)
     window.rounds = rounds;
     window.members = members;
     window.movies = movies;
     window.ratings = ratings;
 
-    window.dispatchEvent(new Event('dataLoaded'));
+    console.log("✅ Data loaded:", {
+      rounds: rounds.length,
+      members: members.length,
+      movies: movies.length,
+      ratings: ratings.length,
+    });
+
+    window.dispatchEvent(new Event("dataLoaded"));
   } catch (err) {
     console.error("Error loading data:", err);
+    throw err;
+  }
+}
+
+// Guard so we only load once per page load
+let loadPromise = null;
+async function ensureDataLoaded() {
+  if (loadPromise) return loadPromise;
+  loadPromise = loadAllData();
+  return loadPromise;
+}
+
+// ---- Auth actions ----
+async function signIn() {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: window.location.origin },
+  });
+
+  if (error) console.error("Login error:", error.message);
+}
+
+// Logout button is hidden, but keep a function for future or manual calls
+async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) console.error("Logout error:", error.message);
+
+  loadPromise = null;
+  updateUI(null);
+}
+
+// ---- Init ----
+async function initAuth() {
+  if (loginBtn) loginBtn.addEventListener("click", signIn);
+  if (logoutBtn) logoutBtn.addEventListener("click", signOut);
+
+  console.log("registering onAuthStateChange");
+
+  // Restore session immediately on load (refresh should keep you logged in)
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const user = session?.user ?? null;
+  updateUI(user);
+
+  // If already logged in on load, fetch data once
+  if (user) {
+    await ensureDataLoaded();
   }
 
-  // --- Helper: fetch all rows from a Supabase table ---
-  async function fetchAllRows(tableName) {
-    const allData = [];
-    let from = 0;
-    const chunk = 1000;
-    let done = false;
+  // React to auth events (OAuth redirect back, refresh/session init, token refresh)
+  supabase.auth.onAuthStateChange(async (event, session2) => {
+    const hasSession = !!session2;
+    console.log("AUTH EVENT:", event, "hasSession:", hasSession);
 
-    while (!done) {
-      const { data, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .range(from, to);
+    const user2 = session2?.user ?? null;
+    updateUI(user2);
 
-      console.log("fetchAllRows:", tableName, "range", from, to, "rows", data?.length, "error", error);
-
-      if (error) throw error;
+    if (user2 && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")) {
+      await ensureDataLoaded();
     }
 
-      allData.push(...data);
-      if (data.length < chunk) done = true;
-      from += chunk;
+    if (!user2 && event === "SIGNED_OUT") {
+      loadPromise = null;
     }
+  });
+}
 
-    return allData;
-  }
-
-(async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) await loadAllData();
-})();
+initAuth();
