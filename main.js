@@ -1,10 +1,17 @@
 document.querySelector('h1').textContent = 'Film Club'
+
 let sortedRounds
 
-window.addEventListener('dataLoaded', () => {
-  renderRoundButtons()
-  displayRoundData(sortedRounds[sortedRounds.length - 1])
-})
+function onDataLoaded() {
+  renderRoundButtons();
+  displayRoundData(sortedRounds[sortedRounds.length - 1]);
+}
+
+window.addEventListener('dataLoaded', onDataLoaded);
+
+if (window.rounds && window.members && window.movies && window.ratings) {
+  onDataLoaded();
+}
 
 function displayRoundData(round) {
   const container = document.querySelector('#round-data-container')
