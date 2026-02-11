@@ -86,6 +86,8 @@ function updateUI(user) {
 
 // --- Load all tables in parallel ---
 async function loadAllData() {
+console.log("loadAllData() starting");
+
   try {
     console.log("loadAllData() starting");
 
@@ -115,6 +117,32 @@ async function loadAllData() {
     window.dispatchEvent(new Event('dataLoaded'));
   } catch (err) {
     console.error("Error loading data:", err);
+  }
+
+  // --- Helper: fetch all rows from a Supabase table ---
+  async function fetchAllRows(tableName) {
+    const allData = [];
+    let from = 0;
+    const chunk = 1000;
+    let done = false;
+
+    while (!done) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .range(from, from + chunk - 1);
+
+      if (error) {
+        console.error(`Error fetching ${tableName}:`, error);
+        break;
+      }
+
+      allData.push(...data);
+      if (data.length < chunk) done = true;
+      from += chunk;
+    }
+
+    return allData;
   }
 }
 
