@@ -1,5 +1,7 @@
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2"
 
+console.log("auth.js loaded");
+
 const SUPABASE_URL = 'https://bnsydsxrhzlyptwyvjll.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuc3lkc3hyaHpseXB0d3l2amxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzOTkzOTgsImV4cCI6MjA4NTc1OTM5OH0.s0M4Ftsu8JtIxXEfDuMxfw3j9rtCV5uQvOYtYQznm1c'
 
@@ -33,7 +35,10 @@ logoutBtn.addEventListener('click', async() => {
 
 let dataLoaded = false;
 
+console.log("registering onAuthStateChange");
+
 supabase.auth.onAuthStateChange(async (event, session) => {
+  console.log("AUTH EVENT:", event, "hasSession:", !!session);
   const user = session?.user ?? null;
   updateUI(user);
 
@@ -81,6 +86,8 @@ function updateUI(user) {
 
 // --- Load all tables in parallel ---
 async function loadAllData() {
+console.log("loadAllData() starting");
+
   try {
     const [rounds, members, movies, ratings] = await Promise.all([
       fetchAllRows('rounds'),
@@ -134,3 +141,8 @@ async function loadAllData() {
     return allData;
   }
 }
+
+(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) await loadAllData();
+})();
