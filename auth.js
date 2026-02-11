@@ -39,6 +39,8 @@ logoutBtn.addEventListener('click', async() => {
 
 // After you create supabase + define updateUI/loadAllData/dataLoaded...
 
+checkSession();
+
 supabase.auth.onAuthStateChange(async (event, session) => {
   const user = session?.user || null;
   updateUI(user);
@@ -135,3 +137,5 @@ async function loadAllData() {
     return allData;
   }
 }
+
+checkSession();

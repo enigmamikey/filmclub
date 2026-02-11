@@ -7,7 +7,15 @@ function onDataLoaded() {
   displayRoundData(sortedRounds[sortedRounds.length - 1]);
 }
 
-window.addEventListener('dataLoaded', onDataLoaded);
+window.addEventListener('dataLoaded', () => {
+  window.rounds && (rounds = window.rounds);
+  window.movies && (movies = window.movies);
+  window.members && (members = window.members);
+  window.ratings && (ratings = window.ratings);
+
+  onDataLoaded()
+});
+
 
 if (window.rounds && window.members && window.movies && window.ratings) {
   onDataLoaded();
