@@ -43,9 +43,9 @@ Most core CRUD functionality is implemented, including creating and reading roun
 
 > ⚠️ Note: This application is designed for a private group and requires authentication.
 >
-> Public visitors to the live site will see a login screen only. Screenshots below demonstrate authenticated functionality, including round navigation and rating entry.
+> Public visitors to the live site will see a login screen only. Screenshot below demonstrates authenticated functionality, including round navigation and rating entry.
 
-<!-- Screenshots or GIFs go here -->
+![Film Club Screenshot](screenshot.png)
 
 ---
 
