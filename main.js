@@ -113,8 +113,6 @@ function enterEditMovieMode(member,round,roundMovies) {
 
   const pickerCells = [...document.querySelector('#pickerRow').querySelectorAll('th')]
   const movieCells = [...document.querySelector('#movieRow').querySelectorAll('th')]
-
-  // start here - there is an error
   const cell = movieCells.find((v,i) => pickerCells[i].includes(member.first_name))
 
   console.log(cell)
