@@ -99,24 +99,128 @@ function displayRoundData(round) {
   }
 }
 
-function enterEditMovieMode(member,round,roundMovies) {
-  console.log(`Entering edit movie mode for ${member.first_name}`)
-  const table = document.querySelector('.ratings-table')
-  const rateBtn = document.querySelector('#rate-btn')
-  const addMovieBtn = document.querySelector('#addMovie-btn')
-  const roundBtns = document.querySelector('#round-buttons-container')
-  const logoutBtn = document.querySelector('#logout-btn')
-  rateBtn.classList.add('hidden')
-  addMovieBtn.classList.add('hidden')
-  roundBtns.classList.add('hidden')
-  logoutBtn.classList.add('hidden')
+  function enterEditMovieMode(member, round, roundMovies) {
+    console.log(`Entering edit movie mode for ${member.first_name}`);
 
-  const pickerCells = [...document.querySelector('#pickerRow').querySelectorAll('th')]
-  const movieCells = [...document.querySelector('#movieRow').querySelectorAll('th')]
-  const cell = movieCells.find((v,i) => pickerCells[i].includes(member.first_name))
+    const container = document.querySelector('#round-data-container');
 
-  console.log(cell)
-}
+    const rateBtn = document.querySelector('#rate-btn');
+    const addMovieBtn = document.querySelector('#addMovie-btn');
+    const roundBtns = document.querySelector('#round-buttons-container');
+    const logoutBtn = document.querySelector('#logout-btn');
+
+    // Hide other controls (your intended behavior)
+    if (rateBtn) rateBtn.classList.add('hidden');
+    if (addMovieBtn) addMovieBtn.classList.add('hidden');
+    if (roundBtns) roundBtns.classList.add('hidden');
+    if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden
+
+    // Identify the movie "owned" by this member (their nomination)
+    const ownedMovieIndex = roundMovies.findIndex(m => m.membership_id === member.membership_id);
+    if (ownedMovieIndex === -1) {
+      console.warn("No owned movie found for this member in this round.");
+      container.innerHTML = '';
+      displayRoundData(round);
+      if (roundBtns) roundBtns.classList.remove('hidden');
+      return;
+    }
+
+    const ownedMovie = roundMovies[ownedMovieIndex];
+
+    // Find the movie title header cell for that movie
+    const movieRow = document.querySelector('#movieRow');
+    if (!movieRow) {
+      console.error("movieRow not found.");
+      container.innerHTML = '';
+      displayRoundData(round);
+      if (roundBtns) roundBtns.classList.remove('hidden');
+      return;
+    }
+
+    // movieRow has leading blank <th>, then one <th> per movie
+    const movieHeaderCells = [...movieRow.querySelectorAll('th')];
+    const targetCell = movieHeaderCells[ownedMovieIndex + 1];
+
+    if (!targetCell) {
+      console.error("Target movie title cell not found.");
+      container.innerHTML = '';
+      displayRoundData(round);
+      if (roundBtns) roundBtns.classList.remove('hidden');
+      return;
+    }
+
+    // Create input pre-filled with existing title
+    const previousTitle = (ownedMovie.title || '').toString();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = previousTitle;
+    input.classList.add('movie-title-input');
+    input.placeholder = 'Enter movie title';
+    input.autocomplete = 'off';
+
+    targetCell.textContent = '';
+    targetCell.appendChild(input);
+
+    // Create Submit / Cancel buttons for this mode
+    const submitBtn = document.createElement('button');
+    submitBtn.textContent = 'Submit Movie';
+    submitBtn.classList.add('action-btn', 'submit-btn');
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.classList.add('action-btn', 'cancel-btn');
+
+    container.appendChild(submitBtn);
+    container.appendChild(cancelBtn);
+
+    // Exit helper: re-render round view, restore buttons
+    function exitEditMovieMode() {
+      container.innerHTML = '';
+      displayRoundData(round);
+      if (roundBtns) roundBtns.classList.remove('hidden');
+      // logout stays hidden
+    }
+
+    // Cancel: no DB update, just revert
+    cancelBtn.addEventListener('click', () => {
+      exitEditMovieMode();
+    });
+
+    // Submit: update DB + local cache, then revert UI
+    submitBtn.addEventListener('click', async () => {
+      const newTitle = (input.value || '').trim();
+
+      submitBtn.disabled = true;
+      cancelBtn.disabled = true;
+
+      try {
+        const sb = window.supabase;
+        if (!sb) throw new Error("Supabase client not found on window.supabase");
+
+        const { error } = await sb
+          .from('movies')
+          .update({ title: newTitle })
+          .eq('movie_id', ownedMovie.movie_id);
+
+        if (error) throw error;
+
+        // Update local in-memory cache so next render shows it
+        const localMovie = movies.find(m => m.movie_id === ownedMovie.movie_id);
+        if (localMovie) localMovie.title = newTitle;
+
+        exitEditMovieMode();
+      } catch (err) {
+        console.error("Error updating movie title:", err);
+        alert("Failed to save movie title.");
+        submitBtn.disabled = false;
+        cancelBtn.disabled = false;
+      }
+    });
+
+    // UX
+    input.focus();
+    input.select();
+  }
 
 function enterEditMode(member, round, roundMovies) {  
   console.log(`Entering edit mode for ${member.first_name}`)
