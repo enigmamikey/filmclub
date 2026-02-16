@@ -196,26 +196,36 @@ function displayRoundData(round) {
       try {
         const sb = window.supabase;
         if (!sb) throw new Error("Supabase client not found on window.supabase");
-
-        const { error } = await sb
+        const { data, error } = await sb
           .from('movies')
           .update({ title: newTitle })
-          .eq('movie_id', ownedMovie.movie_id);
+          .eq('movie_id', ownedMovie.movie_id)
+          .eq('membership_id', member.membership_id)
+          .select('movie_id,title');
 
         if (error) throw error;
 
-        // Update local in-memory cache so next render shows it
-        const localMovie = movies.find(m => m.movie_id === ownedMovie.movie_id);
-        if (localMovie) localMovie.title = newTitle;
+        // If RLS blocked the update, PostgREST often returns [] with no error
+        if (!data || data.length === 0) {
+          throw new Error(
+            "Update was blocked (0 rows updated). This is usually an RLS policy issue or the row filter didn't match."
+          );
+        }
+
+        // Update local cache from returned row (source of truth)
+        const updated = data[0];
+        const localMovie = movies.find(m => m.movie_id === updated.movie_id);
+        if (localMovie) localMovie.title = updated.title;
 
         exitEditMovieMode();
       } catch (err) {
         console.error("Error updating movie title:", err);
-        alert("Failed to save movie title.");
+        alert(String(err?.message || err || "Failed to save movie title."));
         submitBtn.disabled = false;
         cancelBtn.disabled = false;
       }
     });
+
 
     // UX
     input.focus();
