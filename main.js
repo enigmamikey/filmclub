@@ -196,131 +196,165 @@ function displayRoundData(round) {
       try {
         const sb = window.supabase;
         if (!sb) throw new Error("Supabase client not found on window.supabase");
+
         const { data, error } = await sb
           .from('movies')
           .update({ title: newTitle })
           .eq('movie_id', ownedMovie.movie_id)
-          .eq('membership_id', member.membership_id)
           .select('movie_id,title');
 
         if (error) throw error;
+        if (!data || data.length === 0) throw new Error("0 rows updated (blocked or mismatch).");
 
-        // If RLS blocked the update, PostgREST often returns [] with no error
-        if (!data || data.length === 0) {
-          throw new Error(
-            "Update was blocked (0 rows updated). This is usually an RLS policy issue or the row filter didn't match."
-          );
-        }
-
-        // Update local cache from returned row (source of truth)
         const updated = data[0];
+
         const localMovie = movies.find(m => m.movie_id === updated.movie_id);
         if (localMovie) localMovie.title = updated.title;
 
         exitEditMovieMode();
       } catch (err) {
         console.error("Error updating movie title:", err);
-        alert(String(err?.message || err || "Failed to save movie title."));
+        alert(String(err?.message || "Failed to save movie title."));
         submitBtn.disabled = false;
         cancelBtn.disabled = false;
       }
     });
-
 
     // UX
     input.focus();
     input.select();
   }
 
-function enterEditMode(member, round, roundMovies) {  
-  console.log(`Entering edit mode for ${member.first_name}`)
-  const table = document.querySelector('.ratings-table')
-  const rateBtn = document.querySelector('#rate-btn')
-  const addMovieBtn = document.querySelector('#addMovie-btn')
-  const roundBtns = document.querySelector('#round-buttons-container')
-  const logoutBtn = document.querySelector('#logout-btn')
-  rateBtn.classList.add('hidden')
-  addMovieBtn.classList.add('hidden')
-  roundBtns.classList.add('hidden')
-  logoutBtn.classList.add('hidden')
+function enterEditMode(member, round, roundMovies) {
+  console.log(`Entering edit mode for ${member.first_name}`);
+
+  const table = document.querySelector('.ratings-table');
+  const rateBtn = document.querySelector('#rate-btn');
+  const addMovieBtn = document.querySelector('#addMovie-btn');
+  const roundBtns = document.querySelector('#round-buttons-container');
+  const logoutBtn = document.querySelector('#logout-btn');
+
+  if (rateBtn) rateBtn.classList.add('hidden');
+  if (addMovieBtn) addMovieBtn.classList.add('hidden');
+  if (roundBtns) roundBtns.classList.add('hidden');
+  if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden per your preference
 
   const row = [...table.querySelectorAll('tr')]
-    .find(tr => tr.querySelector('th')?.textContent === member.first_name)
+    .find(tr => tr.querySelector('th')?.textContent === member.first_name);
 
-  const editableCells = [...row.querySelectorAll('td')]
-    .filter(td => {
-      const movieID = td.dataset.movieID
-      const movie = roundMovies.find(m => m.movie_id === movieID)
-      return movie && movie.title && movie.title.trim() != ''
-    })
-    editableCells.forEach(td => {
-      const currentValue = td.textContent === '-' ? '': td.textContent
-      const input = document.createElement('input')
-      input.type = 'number'
-      input.min = 1
-      input.max = 10
-      input.value = currentValue
-      input.classList.add('rating-input')
-      td.textContent = ''
-      td.appendChild(input)
-    })
-    const submitBtn = document.createElement('button')
-    submitBtn.textContent = 'Submit Ratings'
-    submitBtn.classList.add('action-btn', 'submit-btn')
-    const cancelBtn = document.createElement('button')
-    cancelBtn.textContent = 'Cancel'
-    cancelBtn.classList.add('action-btn', 'cancel-btn')
-    const container = document.querySelector('#round-data-container')
-    container.appendChild(submitBtn)
-    container.appendChild(cancelBtn)
-    cancelBtn.addEventListener('click', () => {
-      container.innerHTML = ''
-      displayRoundData(round)
-      roundBtns.classList.remove('hidden')
-      // logoutBtn.classList.remove('hidden')
-    })
-    submitBtn.addEventListener('click', async () => {
+  if (!row) {
+    console.error("Could not find rating row for current member.");
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    return;
+  }
+
+  // Only allow rating movies that actually have titles
+  const editableCells = [...row.querySelectorAll('td')].filter(td => {
+    const movieID = td.dataset.movieID;
+    const movie = roundMovies.find(m => m.movie_id === movieID);
+    return movie && movie.title && movie.title.trim() !== '';
+  });
+
+  editableCells.forEach(td => {
+    const currentValue = td.textContent === '-' ? '' : td.textContent;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = 1;
+    input.max = 10;
+    input.step = 0.5; // optional: makes UI nicer
+    input.value = currentValue;
+    input.classList.add('rating-input');
+    td.textContent = '';
+    td.appendChild(input);
+  });
+
+  const submitBtn = document.createElement('button');
+  submitBtn.textContent = 'Submit Ratings';
+  submitBtn.classList.add('action-btn', 'submit-btn');
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.classList.add('action-btn', 'cancel-btn');
+
+  const container = document.querySelector('#round-data-container');
+  container.appendChild(submitBtn);
+  container.appendChild(cancelBtn);
+
+  function exitEditMode() {
+    container.innerHTML = '';
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    // logout stays hidden
+  }
+
+  cancelBtn.addEventListener('click', exitEditMode);
+
+  submitBtn.addEventListener('click', async () => {
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+
+    try {
+      const sb = window.supabase;
+      if (!sb) throw new Error("Supabase client not found on window.supabase");
+
       const updates = editableCells.map(td => {
-        const input = td.querySelector('input')
-        let score = parseFloat(input.value)
-        if (isNaN(score)) {
-          return null
-        }
-        score = Math.min(Math.max(score,1),10)
-        score = Math.floor(score*10)/10
-        if (score % 1 == 0) {
-          score = score.toFixed(0)
-        }
-        const existing = ratings.find(r => r.movie_id === td.dataset.movieID && r.membership_id === member.membership_id)
-        if (existing.score != score) {
+        const input = td.querySelector('input');
+        let score = parseFloat(input.value);
+
+        if (isNaN(score)) return null;
+
+        score = Math.min(Math.max(score, 1), 10);
+        score = Math.floor(score * 10) / 10;
+
+        // store as string for display consistency (your existing code does this)
+        const scoreOut = (score % 1 === 0) ? score.toFixed(0) : score.toString();
+
+        const existing = ratings.find(r =>
+          r.movie_id === td.dataset.movieID &&
+          r.membership_id === member.membership_id
+        );
+
+        // If you ever have missing rows, switch to upsert (we can do later).
+        if (!existing) return null;
+
+        if (existing.score != scoreOut) {
           return {
             movie_id: td.dataset.movieID,
             membership_id: member.membership_id,
-            score: score
-          }
+            score: scoreOut
+          };
         }
-        return null
-      }).filter(Boolean)
-      
-      console.log(`✅ Submitted ${updates.length} ratings`)
+
+        return null;
+      }).filter(Boolean);
+
+      console.log(`✅ Submitted ${updates.length} ratings`);
+
       for (const update of updates) {
-        const {error} = await supabase
+        const { error } = await sb
           .from('ratings')
-          .update({score: update.score})
+          .update({ score: update.score })
           .eq('movie_id', update.movie_id)
-          .eq('membership_id', update.membership_id)
-        if (error) {
-          console.error("Error updating ratings:", error)
-          alert('failed to save ratings')
-        } else {
-          ratings.find(r => r.movie_id === update.movie_id && r.membership_id === update.membership_id).score = update.score
-          container.innerHTML = ''
-          roundBtns.classList.remove('hidden')
-          // logoutBtn.classList.remove('hidden')
-          displayRoundData(round)
-        }
+          .eq('membership_id', update.membership_id);
+
+        if (error) throw error;
+
+        const local = ratings.find(r =>
+          r.movie_id === update.movie_id &&
+          r.membership_id === update.membership_id
+        );
+        if (local) local.score = update.score;
       }
-    })
+
+      exitEditMode();
+    } catch (err) {
+      console.error("Error updating ratings:", err);
+      alert("Failed to save ratings.");
+      submitBtn.disabled = false;
+      cancelBtn.disabled = false;
+    }
+  });
 }
 
 function renderRoundButtons() {
