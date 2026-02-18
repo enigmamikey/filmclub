@@ -39,7 +39,20 @@ if (window.rounds && window.members && window.movies && window.ratings) {
     const table = document.createElement('table');
     table.classList.add('ratings-table');
 
-    // --- Picker row ---
+    // --- Helper: numeric rating for a member/movie, or null if blank/invalid ---
+    function getNumericRating(membership_id, movie_id) {
+      const r = ratings.find(x => x.membership_id === membership_id && x.movie_id === movie_id);
+      if (!r) return null;
+      const v = parseFloat(r.score);
+      return Number.isNaN(v) ? null : v;
+    }
+
+    function formatNumber(value, decimals) {
+      const fixed = value.toFixed(decimals);
+      return parseFloat(fixed).toString();
+    }
+
+    // --- Picker row (top row) ---
     const pickerRow = document.createElement('tr');
     pickerRow.appendChild(document.createElement('th'));
     pickerRow.id = 'pickerRow';
@@ -51,9 +64,11 @@ if (window.rounds && window.members && window.movies && window.ratings) {
       pickerRow.appendChild(th);
     });
 
+    // extra column on the right: top cell empty
+    pickerRow.appendChild(document.createElement('th'));
     table.appendChild(pickerRow);
 
-    // --- Movie title row ---
+    // --- Movie title row (second row) ---
     const movieRow = document.createElement('tr');
     movieRow.appendChild(document.createElement('th'));
     movieRow.id = 'movieRow';
@@ -63,6 +78,11 @@ if (window.rounds && window.members && window.movies && window.ratings) {
       th.textContent = movie.title || '';
       movieRow.appendChild(th);
     });
+
+    // right-most column header label (visually “header” lives here)
+    const ratingCountHeader = document.createElement('th');
+    ratingCountHeader.textContent = 'Rating Count';
+    movieRow.appendChild(ratingCountHeader);
 
     table.appendChild(movieRow);
 
@@ -76,48 +96,79 @@ if (window.rounds && window.members && window.movies && window.ratings) {
       nameCell.textContent = member.first_name;
       tr.appendChild(nameCell);
 
+      // count how many ratings this member actually provided (non-null numeric)
+      let countRated = 0;
+
       roundMovies.forEach(movie => {
         const td = document.createElement('td');
+
         const rating = ratings.find(r =>
           r.membership_id === member.membership_id &&
           r.movie_id === movie.movie_id
         );
 
+        // Match your existing display: show '-' when blank
         td.textContent = rating ? rating.score : '-';
+
         td.dataset.movieID = movie.movie_id;
         td.dataset.memberID = member.membership_id;
-
         tr.appendChild(td);
+
+        const numeric = getNumericRating(member.membership_id, movie.movie_id);
+        if (numeric !== null) countRated += 1;
       });
+
+      // right-most column: rating count for this member
+      const countCell = document.createElement('td');
+      countCell.textContent = String(countRated);
+      tr.appendChild(countCell);
 
       table.appendChild(tr);
     });
 
-    // --- Average row (NEW) ---
+    // --- Average row (bottom row) ---
     const avgRow = document.createElement('tr');
 
     const avgLabel = document.createElement('th');
     avgLabel.textContent = 'Average';
     avgRow.appendChild(avgLabel);
 
+    // we’ll also compute overall round avg for the bottom-right cell
+    let overallSum = 0;
+    let overallCount = 0;
+
     roundMovies.forEach(movie => {
       const td = document.createElement('td');
 
-      const movieRatings = ratings
-        .filter(r => r.movie_id === movie.movie_id)
-        .map(r => parseFloat(r.score))
-        .filter(v => !Number.isNaN(v)); // ignore blanks / nulls / '-' etc.
+      const movieRatings = roundMembers
+        .map(m => getNumericRating(m.membership_id, movie.movie_id))
+        .filter(v => v !== null);
 
       if (movieRatings.length === 0) {
-        td.textContent = '';
+        td.textContent = ''; // blank if 0 ratings
       } else {
         const sum = movieRatings.reduce((a, b) => a + b, 0);
         const avg = sum / movieRatings.length;
-        td.textContent = avg.toFixed(2);
+        td.textContent = formatNumber(avg, 2);
+      }
+
+      // contribute to overall average
+      for (const v of movieRatings) {
+        overallSum += v;
+        overallCount += 1;
       }
 
       avgRow.appendChild(td);
     });
+
+    // bottom-right cell: overall round average to 3 decimals, ignoring blanks
+    const overallCell = document.createElement('td');
+    if (overallCount === 0) {
+      overallCell.textContent = '';
+    } else {
+      overallCell.textContent = formatNumber(overallSum / overallCount, 3);
+    }
+    avgRow.appendChild(overallCell);
 
     table.appendChild(avgRow);
 
@@ -147,7 +198,6 @@ if (window.rounds && window.members && window.movies && window.ratings) {
       });
     }
   }
-
 
   function enterEditMovieMode(member, round, roundMovies) {
     console.log(`Entering edit movie mode for ${member.first_name}`);
