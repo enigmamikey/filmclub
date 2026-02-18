@@ -21,83 +21,133 @@ if (window.rounds && window.members && window.movies && window.ratings) {
   onDataLoaded();
 }
 
-function displayRoundData(round) {
-  const container = document.querySelector('#round-data-container')
-  container.innerHTML = ''
+  function displayRoundData(round) {
+    const container = document.querySelector('#round-data-container');
+    container.innerHTML = '';
 
-  const title = document.querySelector('#round-title')
-  title.textContent = `Round ${round.version_number}.${round.round_number}`
+    const title = document.querySelector('#round-title');
+    title.textContent = `Round ${round.version_number}.${round.round_number}`;
 
-  const roundMovies = movies
-    .filter(m => m.round_id == round.round_id)
-    .sort((a,b) => a.position - b.position)
-  const roundMembers = members
-    .filter(m => m.version_number == round.version_number)
-    .sort((a,b) => a.membership_id.localeCompare(b.membership_id))
+    const roundMovies = movies
+      .filter(m => m.round_id == round.round_id)
+      .sort((a, b) => a.position - b.position);
 
-  const table = document.createElement('table')
-  table.classList.add('ratings-table')
+    const roundMembers = members
+      .filter(m => m.version_number == round.version_number)
+      .sort((a, b) => a.membership_id.localeCompare(b.membership_id));
 
-  const pickerRow = document.createElement('tr')
-  pickerRow.appendChild(document.createElement('th'))
-  pickerRow.id = 'pickerRow'
-  roundMovies.forEach((movie, i) => {
-    const th = document.createElement('th')
-    const picker = roundMembers.find((m, i, a) => m.membership_id == movie.membership_id)
-    th.textContent = `Week ${i+1} - ${picker.first_name}`
-    pickerRow.appendChild(th)
-  })
-  table.appendChild(pickerRow)
+    const table = document.createElement('table');
+    table.classList.add('ratings-table');
 
-  const movieRow = document.createElement('tr')
-  movieRow.appendChild(document.createElement('th'))
-  movieRow.id = 'movieRow'
-  roundMovies.forEach(movie => {
-    const th = document.createElement('th')
-    th.textContent = movie.title || ''
-    movieRow.appendChild(th)
-  })
-  table.appendChild(movieRow)
-  const currentMember = roundMembers.find(m => m.email === window.currentUser?.email)
-  roundMembers.forEach(member => {
-    const tr = document.createElement('tr')
-    const nameCell = document.createElement('th')
-    nameCell.textContent = member.first_name
-    tr.appendChild(nameCell)
+    // --- Picker row ---
+    const pickerRow = document.createElement('tr');
+    pickerRow.appendChild(document.createElement('th'));
+    pickerRow.id = 'pickerRow';
+
+    roundMovies.forEach((movie, i) => {
+      const th = document.createElement('th');
+      const picker = roundMembers.find(m => m.membership_id == movie.membership_id);
+      th.textContent = picker ? `Week ${i + 1} - ${picker.first_name}` : `Week ${i + 1}`;
+      pickerRow.appendChild(th);
+    });
+
+    table.appendChild(pickerRow);
+
+    // --- Movie title row ---
+    const movieRow = document.createElement('tr');
+    movieRow.appendChild(document.createElement('th'));
+    movieRow.id = 'movieRow';
+
     roundMovies.forEach(movie => {
-      const td = document.createElement('td')
-      const rating = ratings.find(r => 
-        r.membership_id === member.membership_id && 
-        r.movie_id === movie.movie_id
-      )
-      td.textContent = rating ? rating.score : '-'
-      td.dataset.movieID = movie.movie_id
-      td.dataset.memberID = member.membership_id
-      tr.appendChild(td)
-    })
-    table.appendChild(tr)
-  })
-  container.appendChild(table)
+      const th = document.createElement('th');
+      th.textContent = movie.title || '';
+      movieRow.appendChild(th);
+    });
 
-  if (currentMember) {
-    const rateBtn = document.createElement('button')
-    const addMovieBtn = document.createElement('button')
-    rateBtn.textContent = 'Rate My Movies'
-    addMovieBtn.textContent = 'Add My Movie'
-    rateBtn.id = 'rate-btn'
-    addMovieBtn.id = 'addMovie-btn'
-    container.appendChild(rateBtn)
-    container.appendChild(addMovieBtn)
+    table.appendChild(movieRow);
 
-    rateBtn.addEventListener('click', () => {
-      enterEditMode(currentMember,round,roundMovies)
-    })
+    // --- Member rating rows ---
+    const currentMember = roundMembers.find(m => m.email === window.currentUser?.email);
 
-    addMovieBtn.addEventListener('click', () => {
-      enterEditMovieMode(currentMember,round,roundMovies)
-    })
+    roundMembers.forEach(member => {
+      const tr = document.createElement('tr');
+
+      const nameCell = document.createElement('th');
+      nameCell.textContent = member.first_name;
+      tr.appendChild(nameCell);
+
+      roundMovies.forEach(movie => {
+        const td = document.createElement('td');
+        const rating = ratings.find(r =>
+          r.membership_id === member.membership_id &&
+          r.movie_id === movie.movie_id
+        );
+
+        td.textContent = rating ? rating.score : '-';
+        td.dataset.movieID = movie.movie_id;
+        td.dataset.memberID = member.membership_id;
+
+        tr.appendChild(td);
+      });
+
+      table.appendChild(tr);
+    });
+
+    // --- Average row (NEW) ---
+    const avgRow = document.createElement('tr');
+
+    const avgLabel = document.createElement('th');
+    avgLabel.textContent = 'Average';
+    avgRow.appendChild(avgLabel);
+
+    roundMovies.forEach(movie => {
+      const td = document.createElement('td');
+
+      const movieRatings = ratings
+        .filter(r => r.movie_id === movie.movie_id)
+        .map(r => parseFloat(r.score))
+        .filter(v => !Number.isNaN(v)); // ignore blanks / nulls / '-' etc.
+
+      if (movieRatings.length === 0) {
+        td.textContent = '';
+      } else {
+        const sum = movieRatings.reduce((a, b) => a + b, 0);
+        const avg = sum / movieRatings.length;
+        td.textContent = avg.toFixed(2);
+      }
+
+      avgRow.appendChild(td);
+    });
+
+    table.appendChild(avgRow);
+
+    // --- Render ---
+    container.appendChild(table);
+
+    // --- Buttons ---
+    if (currentMember) {
+      const rateBtn = document.createElement('button');
+      const addMovieBtn = document.createElement('button');
+
+      rateBtn.textContent = 'Rate My Movies';
+      addMovieBtn.textContent = 'Add My Movie';
+
+      rateBtn.id = 'rate-btn';
+      addMovieBtn.id = 'addMovie-btn';
+
+      container.appendChild(rateBtn);
+      container.appendChild(addMovieBtn);
+
+      rateBtn.addEventListener('click', () => {
+        enterEditMode(currentMember, round, roundMovies);
+      });
+
+      addMovieBtn.addEventListener('click', () => {
+        enterEditMovieMode(currentMember, round, roundMovies);
+      });
+    }
   }
-}
+
 
   function enterEditMovieMode(member, round, roundMovies) {
     console.log(`Entering edit movie mode for ${member.first_name}`);
@@ -225,155 +275,155 @@ function displayRoundData(round) {
     input.select();
   }
 
-function enterEditMode(member, round, roundMovies) {
-  console.log(`Entering edit mode for ${member.first_name}`);
+  function enterEditMode(member, round, roundMovies) {
+    console.log(`Entering edit mode for ${member.first_name}`);
 
-  const table = document.querySelector('.ratings-table');
-  const rateBtn = document.querySelector('#rate-btn');
-  const addMovieBtn = document.querySelector('#addMovie-btn');
-  const roundBtns = document.querySelector('#round-buttons-container');
-  const logoutBtn = document.querySelector('#logout-btn');
+    const table = document.querySelector('.ratings-table');
+    const rateBtn = document.querySelector('#rate-btn');
+    const addMovieBtn = document.querySelector('#addMovie-btn');
+    const roundBtns = document.querySelector('#round-buttons-container');
+    const logoutBtn = document.querySelector('#logout-btn');
 
-  if (rateBtn) rateBtn.classList.add('hidden');
-  if (addMovieBtn) addMovieBtn.classList.add('hidden');
-  if (roundBtns) roundBtns.classList.add('hidden');
-  if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden per your preference
+    if (rateBtn) rateBtn.classList.add('hidden');
+    if (addMovieBtn) addMovieBtn.classList.add('hidden');
+    if (roundBtns) roundBtns.classList.add('hidden');
+    if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden per your preference
 
-  const row = [...table.querySelectorAll('tr')]
-    .find(tr => tr.querySelector('th')?.textContent === member.first_name);
+    const row = [...table.querySelectorAll('tr')]
+      .find(tr => tr.querySelector('th')?.textContent === member.first_name);
 
-  if (!row) {
-    console.error("Could not find rating row for current member.");
-    displayRoundData(round);
-    if (roundBtns) roundBtns.classList.remove('hidden');
-    return;
-  }
+    if (!row) {
+      console.error("Could not find rating row for current member.");
+      displayRoundData(round);
+      if (roundBtns) roundBtns.classList.remove('hidden');
+      return;
+    }
 
-  // Only allow rating movies that actually have titles
-  const editableCells = [...row.querySelectorAll('td')].filter(td => {
-    const movieID = td.dataset.movieID;
-    const movie = roundMovies.find(m => m.movie_id === movieID);
-    return movie && movie.title && movie.title.trim() !== '';
-  });
+    // Only allow rating movies that actually have titles
+    const editableCells = [...row.querySelectorAll('td')].filter(td => {
+      const movieID = td.dataset.movieID;
+      const movie = roundMovies.find(m => m.movie_id === movieID);
+      return movie && movie.title && movie.title.trim() !== '';
+    });
 
-  editableCells.forEach(td => {
-    const currentValue = td.textContent === '-' ? '' : td.textContent;
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = 1;
-    input.max = 10;
-    input.step = 0.5; // optional: makes UI nicer
-    input.value = currentValue;
-    input.classList.add('rating-input');
-    td.textContent = '';
-    td.appendChild(input);
-  });
+    editableCells.forEach(td => {
+      const currentValue = td.textContent === '-' ? '' : td.textContent;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = 1;
+      input.max = 10;
+      input.step = 0.5; // optional: makes UI nicer
+      input.value = currentValue;
+      input.classList.add('rating-input');
+      td.textContent = '';
+      td.appendChild(input);
+    });
 
-  const submitBtn = document.createElement('button');
-  submitBtn.textContent = 'Submit Ratings';
-  submitBtn.classList.add('action-btn', 'submit-btn');
+    const submitBtn = document.createElement('button');
+    submitBtn.textContent = 'Submit Ratings';
+    submitBtn.classList.add('action-btn', 'submit-btn');
 
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.classList.add('action-btn', 'cancel-btn');
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.classList.add('action-btn', 'cancel-btn');
 
-  const container = document.querySelector('#round-data-container');
-  container.appendChild(submitBtn);
-  container.appendChild(cancelBtn);
+    const container = document.querySelector('#round-data-container');
+    container.appendChild(submitBtn);
+    container.appendChild(cancelBtn);
 
-  function exitEditMode() {
-    container.innerHTML = '';
-    displayRoundData(round);
-    if (roundBtns) roundBtns.classList.remove('hidden');
-    // logout stays hidden
-  }
+    function exitEditMode() {
+      container.innerHTML = '';
+      displayRoundData(round);
+      if (roundBtns) roundBtns.classList.remove('hidden');
+      // logout stays hidden
+    }
 
-  cancelBtn.addEventListener('click', exitEditMode);
+    cancelBtn.addEventListener('click', exitEditMode);
 
-  submitBtn.addEventListener('click', async () => {
-    submitBtn.disabled = true;
-    cancelBtn.disabled = true;
+    submitBtn.addEventListener('click', async () => {
+      submitBtn.disabled = true;
+      cancelBtn.disabled = true;
 
-    try {
-      const sb = window.supabase;
-      if (!sb) throw new Error("Supabase client not found on window.supabase");
+      try {
+        const sb = window.supabase;
+        if (!sb) throw new Error("Supabase client not found on window.supabase");
 
-      const updates = editableCells.map(td => {
-        const input = td.querySelector('input');
-        let score = parseFloat(input.value);
+        const updates = editableCells.map(td => {
+          const input = td.querySelector('input');
+          let score = parseFloat(input.value);
 
-        if (isNaN(score)) return null;
+          if (isNaN(score)) return null;
 
-        score = Math.min(Math.max(score, 1), 10);
-        score = Math.floor(score * 10) / 10;
+          score = Math.min(Math.max(score, 1), 10);
+          score = Math.floor(score * 10) / 10;
 
-        // store as string for display consistency (your existing code does this)
-        const scoreOut = (score % 1 === 0) ? score.toFixed(0) : score.toString();
+          // store as string for display consistency (your existing code does this)
+          const scoreOut = (score % 1 === 0) ? score.toFixed(0) : score.toString();
 
-        const existing = ratings.find(r =>
-          r.movie_id === td.dataset.movieID &&
-          r.membership_id === member.membership_id
-        );
+          const existing = ratings.find(r =>
+            r.movie_id === td.dataset.movieID &&
+            r.membership_id === member.membership_id
+          );
 
-        // If you ever have missing rows, switch to upsert (we can do later).
-        if (!existing) return null;
+          // If you ever have missing rows, switch to upsert (we can do later).
+          if (!existing) return null;
 
-        if (existing.score != scoreOut) {
-          return {
-            movie_id: td.dataset.movieID,
-            membership_id: member.membership_id,
-            score: scoreOut
-          };
+          if (existing.score != scoreOut) {
+            return {
+              movie_id: td.dataset.movieID,
+              membership_id: member.membership_id,
+              score: scoreOut
+            };
+          }
+
+          return null;
+        }).filter(Boolean);
+
+        console.log(`✅ Submitted ${updates.length} ratings`);
+
+        for (const update of updates) {
+          const { error } = await sb
+            .from('ratings')
+            .update({ score: update.score })
+            .eq('movie_id', update.movie_id)
+            .eq('membership_id', update.membership_id);
+
+          if (error) throw error;
+
+          const local = ratings.find(r =>
+            r.movie_id === update.movie_id &&
+            r.membership_id === update.membership_id
+          );
+          if (local) local.score = update.score;
         }
 
-        return null;
-      }).filter(Boolean);
-
-      console.log(`✅ Submitted ${updates.length} ratings`);
-
-      for (const update of updates) {
-        const { error } = await sb
-          .from('ratings')
-          .update({ score: update.score })
-          .eq('movie_id', update.movie_id)
-          .eq('membership_id', update.membership_id);
-
-        if (error) throw error;
-
-        const local = ratings.find(r =>
-          r.movie_id === update.movie_id &&
-          r.membership_id === update.membership_id
-        );
-        if (local) local.score = update.score;
+        exitEditMode();
+      } catch (err) {
+        console.error("Error updating ratings:", err);
+        alert("Failed to save ratings.");
+        submitBtn.disabled = false;
+        cancelBtn.disabled = false;
       }
+    });
+  }
 
-      exitEditMode();
-    } catch (err) {
-      console.error("Error updating ratings:", err);
-      alert("Failed to save ratings.");
-      submitBtn.disabled = false;
-      cancelBtn.disabled = false;
-    }
-  });
-}
-
-function renderRoundButtons() {
-  const container = document.querySelector('#round-buttons-container')
-  container.innerHTML = ''
-  sortedRounds = [...rounds].sort((a,b) => {
-    if (a.version_number === b.version_number) {
-      return a.round_number - b.round_number
-    }
-    return a.version_number - b.version_number
-  })
-
-  sortedRounds.forEach(round => {
-    const btn = document.createElement('button')
-    btn.textContent = `${round.version_number}.${round.round_number}`
-    btn.classList.add('round-btn')
-    btn.addEventListener('click', () => {
-      displayRoundData(round)
+  function renderRoundButtons() {
+    const container = document.querySelector('#round-buttons-container')
+    container.innerHTML = ''
+    sortedRounds = [...rounds].sort((a,b) => {
+      if (a.version_number === b.version_number) {
+        return a.round_number - b.round_number
+      }
+      return a.version_number - b.version_number
     })
-    container.appendChild(btn)
-  })
-}
+
+    sortedRounds.forEach(round => {
+      const btn = document.createElement('button')
+      btn.textContent = `${round.version_number}.${round.round_number}`
+      btn.classList.add('round-btn')
+      btn.addEventListener('click', () => {
+        displayRoundData(round)
+      })
+      container.appendChild(btn)
+    })
+  }
