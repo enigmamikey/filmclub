@@ -21,459 +21,513 @@ if (window.rounds && window.members && window.movies && window.ratings) {
   onDataLoaded();
 }
 
-  function displayRoundData(round) {
-    const container = document.querySelector('#round-data-container');
-    container.innerHTML = '';
+function displayRoundData(round) {
+  // remember last viewed round so toggle can re-render
+  window.currentRound = round;
 
-    const title = document.querySelector('#round-title');
-    title.textContent = `Round ${round.version_number}.${round.round_number}`;
+  const container = document.querySelector('#round-data-container');
+  container.innerHTML = '';
 
-    const roundMovies = movies
-      .filter(m => m.round_id == round.round_id)
-      .sort((a, b) => a.position - b.position);
+  const title = document.querySelector('#round-title');
+  title.textContent = `Round ${round.version_number}.${round.round_number}`;
 
-    const roundMembers = members
-      .filter(m => m.version_number == round.version_number)
-      .sort((a, b) => a.membership_id.localeCompare(b.membership_id));
+  const roundMovies = movies
+    .filter(m => m.round_id == round.round_id)
+    .sort((a, b) => a.position - b.position);
 
-    const table = document.createElement('table');
-    table.classList.add('ratings-table');
+  const roundMembers = members
+    .filter(m => m.version_number == round.version_number)
+    .sort((a, b) => a.membership_id.localeCompare(b.membership_id));
 
-    // --- Helper: numeric rating for a member/movie, or null if blank/invalid ---
-    function getNumericRating(membership_id, movie_id) {
-      const r = ratings.find(x => x.membership_id === membership_id && x.movie_id === movie_id);
-      if (!r) return null;
-      const v = parseFloat(r.score);
-      return Number.isNaN(v) ? null : v;
-    }
+  // ---------- helpers ----------
+  function getNumericRating(membership_id, movie_id) {
+    const r = ratings.find(x => x.membership_id === membership_id && x.movie_id === movie_id);
+    if (!r) return null;
+    const v = parseFloat(r.score);
+    return Number.isNaN(v) ? null : v;
+  }
 
-    function formatNumber(value, decimals) {
-      const fixed = value.toFixed(decimals);
-      return parseFloat(fixed).toString();
-    }
+  function formatNumber(value, decimals) {
+    const fixed = value.toFixed(decimals);
+    return parseFloat(fixed).toString(); // removes trailing zeros
+  }
 
-    // --- Picker row (top row) ---
-    const pickerRow = document.createElement('tr');
-    pickerRow.appendChild(document.createElement('th'));
-    pickerRow.id = 'pickerRow';
+  const BIAS_KEY = 'filmclub_hide_others_until_rated';
+  function getBiasMode() {
+    return localStorage.getItem(BIAS_KEY) === 'true';
+  }
+  function setBiasMode(val) {
+    localStorage.setItem(BIAS_KEY, val ? 'true' : 'false');
+  }
 
-    roundMovies.forEach((movie, i) => {
-      const th = document.createElement('th');
-      const picker = roundMembers.find(m => m.membership_id == movie.membership_id);
-      th.textContent = picker ? `Week ${i + 1} - ${picker.first_name}` : `Week ${i + 1}`;
-      pickerRow.appendChild(th);
-    });
+  // logged-in member for THIS round (null if user not part of that round/version)
+  const currentMember = roundMembers.find(m => m.email === window.currentUser?.email);
+  const biasModeOn = getBiasMode();
 
-    // extra column on the right: top cell empty
-    pickerRow.appendChild(document.createElement('th'));
-    table.appendChild(pickerRow);
+  // Only apply the *** rule if the logged-in user is a member of this round
+  const shouldApplyBiasRule = !!currentMember && biasModeOn;
 
-    // --- Movie title row (second row) ---
-    const movieRow = document.createElement('tr');
-    movieRow.appendChild(document.createElement('th'));
-    movieRow.id = 'movieRow';
+  // ---------- toggle button ----------
+  // Put it at the top of the round-data container (you said placement doesn’t matter for now)
+  const toggleBtn = document.createElement('button');
+  toggleBtn.id = 'bias-toggle-btn';
+  toggleBtn.textContent = `Bias toggle: ${biasModeOn ? 'ON' : 'OFF'}`;
+  toggleBtn.classList.add('action-btn');
+  container.appendChild(toggleBtn);
 
-    roundMovies.forEach(movie => {
-      const th = document.createElement('th');
-      th.textContent = movie.title || '';
-      movieRow.appendChild(th);
-    });
+  toggleBtn.addEventListener('click', () => {
+    setBiasMode(!getBiasMode());
+    // re-render same round
+    displayRoundData(window.currentRound);
+  });
 
-    // right-most column header label (visually “header” lives here)
-    const ratingCountHeader = document.createElement('th');
-    ratingCountHeader.textContent = 'Rating Count';
-    movieRow.appendChild(ratingCountHeader);
+  // ---------- table ----------
+  const table = document.createElement('table');
+  table.classList.add('ratings-table');
 
-    table.appendChild(movieRow);
+  // Picker row
+  const pickerRow = document.createElement('tr');
+  pickerRow.appendChild(document.createElement('th'));
+  pickerRow.id = 'pickerRow';
 
-    // --- Member rating rows ---
-    const currentMember = roundMembers.find(m => m.email === window.currentUser?.email);
+  roundMovies.forEach((movie, i) => {
+    const th = document.createElement('th');
+    const picker = roundMembers.find(m => m.membership_id == movie.membership_id);
+    th.textContent = picker ? `Week ${i + 1} - ${picker.first_name}` : `Week ${i + 1}`;
+    pickerRow.appendChild(th);
+  });
 
-    roundMembers.forEach(member => {
-      const tr = document.createElement('tr');
+  // extra right column top cell empty
+  pickerRow.appendChild(document.createElement('th'));
+  table.appendChild(pickerRow);
 
-      const nameCell = document.createElement('th');
-      nameCell.textContent = member.first_name;
-      tr.appendChild(nameCell);
+  // Movie title row (also shows "Rating Count" header at far right)
+  const movieRow = document.createElement('tr');
+  movieRow.appendChild(document.createElement('th'));
+  movieRow.id = 'movieRow';
 
-      // count how many ratings this member actually provided (non-null numeric)
-      let countRated = 0;
+  roundMovies.forEach(movie => {
+    const th = document.createElement('th');
+    th.textContent = movie.title || '';
+    movieRow.appendChild(th);
+  });
 
-      roundMovies.forEach(movie => {
-        const td = document.createElement('td');
+  const ratingCountHeader = document.createElement('th');
+  ratingCountHeader.textContent = 'Rating Count';
+  movieRow.appendChild(ratingCountHeader);
 
-        const rating = ratings.find(r =>
-          r.membership_id === member.membership_id &&
-          r.movie_id === movie.movie_id
-        );
+  table.appendChild(movieRow);
 
-        // Match your existing display: show '-' when blank
-        td.textContent = rating ? rating.score : '-';
+  // Member rows
+  roundMembers.forEach(member => {
+    const tr = document.createElement('tr');
 
-        td.dataset.movieID = movie.movie_id;
-        td.dataset.memberID = member.membership_id;
-        tr.appendChild(td);
+    const nameCell = document.createElement('th');
+    nameCell.textContent = member.first_name;
+    tr.appendChild(nameCell);
 
-        const numeric = getNumericRating(member.membership_id, movie.movie_id);
-        if (numeric !== null) countRated += 1;
-      });
-
-      // right-most column: rating count for this member
-      const countCell = document.createElement('td');
-      countCell.textContent = String(countRated);
-      tr.appendChild(countCell);
-
-      table.appendChild(tr);
-    });
-
-    // --- Average row (bottom row) ---
-    const avgRow = document.createElement('tr');
-
-    const avgLabel = document.createElement('th');
-    avgLabel.textContent = 'Average';
-    avgRow.appendChild(avgLabel);
-
-    // we’ll also compute overall round avg for the bottom-right cell
-    let overallSum = 0;
-    let overallCount = 0;
+    let countRated = 0;
 
     roundMovies.forEach(movie => {
       const td = document.createElement('td');
 
-      const movieRatings = roundMembers
-        .map(m => getNumericRating(m.membership_id, movie.movie_id))
-        .filter(v => v !== null);
+      const rating = ratings.find(r =>
+        r.membership_id === member.membership_id &&
+        r.movie_id === movie.movie_id
+      );
 
-      if (movieRatings.length === 0) {
-        td.textContent = ''; // blank if 0 ratings
+      // Determine whether current user has rated this movie
+      const currentUsersRatingNumeric = currentMember
+        ? getNumericRating(currentMember.membership_id, movie.movie_id)
+        : null;
+
+      const otherMemberHasRating = rating && rating.score !== null && rating.score !== '';
+
+      // *** RULE:
+      // If bias mode is ON and the viewer is a member of this round:
+      // - for other people's rows, hide the score unless viewer has rated that movie
+      if (
+        shouldApplyBiasRule &&
+        currentMember &&
+        member.membership_id !== currentMember.membership_id &&
+        currentUsersRatingNumeric === null &&
+        otherMemberHasRating
+      ) {
+        td.textContent = '***';
       } else {
-        const sum = movieRatings.reduce((a, b) => a + b, 0);
-        const avg = sum / movieRatings.length;
-        td.textContent = formatNumber(avg, 2);
+        // Normal behavior
+        td.textContent = rating ? rating.score : '-';
       }
 
-      // contribute to overall average
-      for (const v of movieRatings) {
-        overallSum += v;
-        overallCount += 1;
-      }
+      td.dataset.movieID = movie.movie_id;
+      td.dataset.memberID = member.membership_id;
+      tr.appendChild(td);
 
-      avgRow.appendChild(td);
+      // rating count is always based on the true numeric value (not what is displayed)
+      const numeric = getNumericRating(member.membership_id, movie.movie_id);
+      if (numeric !== null) countRated += 1;
     });
 
-    // bottom-right cell: overall round average to 3 decimals, ignoring blanks
-    const overallCell = document.createElement('td');
-    if (overallCount === 0) {
-      overallCell.textContent = '';
-    } else {
-      overallCell.textContent = formatNumber(overallSum / overallCount, 3);
-    }
-    avgRow.appendChild(overallCell);
+    const countCell = document.createElement('td');
+    countCell.textContent = String(countRated);
+    tr.appendChild(countCell);
 
-    table.appendChild(avgRow);
+    table.appendChild(tr);
+  });
 
-    // --- Render ---
-    container.appendChild(table);
+  // Average row (bottom row) + bottom-right overall average
+  const avgRow = document.createElement('tr');
 
-    // --- Buttons ---
-    if (currentMember) {
-      const rateBtn = document.createElement('button');
-      const addMovieBtn = document.createElement('button');
+  const avgLabel = document.createElement('th');
+  avgLabel.textContent = 'Average';
+  avgRow.appendChild(avgLabel);
 
-      rateBtn.textContent = 'Rate My Movies';
-      addMovieBtn.textContent = 'Add My Movie';
+  let overallSum = 0;
+  let overallCount = 0;
 
-      rateBtn.id = 'rate-btn';
-      addMovieBtn.id = 'addMovie-btn';
+  roundMovies.forEach(movie => {
+    const td = document.createElement('td');
 
-      container.appendChild(rateBtn);
-      container.appendChild(addMovieBtn);
+    const movieRatings = roundMembers
+      .map(m => getNumericRating(m.membership_id, movie.movie_id))
+      .filter(v => v !== null);
 
-      rateBtn.addEventListener('click', () => {
-        enterEditMode(currentMember, round, roundMovies);
-      });
+    // If bias mode is ON and viewer is a member of this round,
+    // hide the average for movies the viewer has NOT rated yet.
+    const currentUsersRatingNumeric = currentMember
+      ? getNumericRating(currentMember.membership_id, movie.movie_id)
+      : null;
 
-      addMovieBtn.addEventListener('click', () => {
-        enterEditMovieMode(currentMember, round, roundMovies);
-      });
-    }
-  }
-
-  function enterEditMovieMode(member, round, roundMovies) {
-    console.log(`Entering edit movie mode for ${member.first_name}`);
-
-    const container = document.querySelector('#round-data-container');
-
-    const rateBtn = document.querySelector('#rate-btn');
-    const addMovieBtn = document.querySelector('#addMovie-btn');
-    const roundBtns = document.querySelector('#round-buttons-container');
-    const logoutBtn = document.querySelector('#logout-btn');
-
-    // Hide other controls (your intended behavior)
-    if (rateBtn) rateBtn.classList.add('hidden');
-    if (addMovieBtn) addMovieBtn.classList.add('hidden');
-    if (roundBtns) roundBtns.classList.add('hidden');
-    if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden
-
-    // Identify the movie "owned" by this member (their nomination)
-    const ownedMovieIndex = roundMovies.findIndex(m => m.membership_id === member.membership_id);
-    if (ownedMovieIndex === -1) {
-      console.warn("No owned movie found for this member in this round.");
-      container.innerHTML = '';
-      displayRoundData(round);
-      if (roundBtns) roundBtns.classList.remove('hidden');
-      return;
-    }
-
-    const ownedMovie = roundMovies[ownedMovieIndex];
-
-    // Find the movie title header cell for that movie
-    const movieRow = document.querySelector('#movieRow');
-    if (!movieRow) {
-      console.error("movieRow not found.");
-      container.innerHTML = '';
-      displayRoundData(round);
-      if (roundBtns) roundBtns.classList.remove('hidden');
-      return;
-    }
-
-    // movieRow has leading blank <th>, then one <th> per movie
-    const movieHeaderCells = [...movieRow.querySelectorAll('th')];
-    const targetCell = movieHeaderCells[ownedMovieIndex + 1];
-
-    if (!targetCell) {
-      console.error("Target movie title cell not found.");
-      container.innerHTML = '';
-      displayRoundData(round);
-      if (roundBtns) roundBtns.classList.remove('hidden');
-      return;
-    }
-
-    // Create input pre-filled with existing title
-    const previousTitle = (ownedMovie.title || '').toString();
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = previousTitle;
-    input.classList.add('movie-title-input');
-    input.placeholder = 'Enter movie title';
-    input.autocomplete = 'off';
-
-    targetCell.textContent = '';
-    targetCell.appendChild(input);
-
-    // Create Submit / Cancel buttons for this mode
-    const submitBtn = document.createElement('button');
-    submitBtn.textContent = 'Submit Movie';
-    submitBtn.classList.add('action-btn', 'submit-btn');
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.classList.add('action-btn', 'cancel-btn');
-
-    container.appendChild(submitBtn);
-    container.appendChild(cancelBtn);
-
-    // Exit helper: re-render round view, restore buttons
-    function exitEditMovieMode() {
-      container.innerHTML = '';
-      displayRoundData(round);
-      if (roundBtns) roundBtns.classList.remove('hidden');
-      // logout stays hidden
-    }
-
-    // Cancel: no DB update, just revert
-    cancelBtn.addEventListener('click', () => {
-      exitEditMovieMode();
-    });
-
-    // Submit: update DB + local cache, then revert UI
-    submitBtn.addEventListener('click', async () => {
-      const newTitle = (input.value || '').trim();
-
-      submitBtn.disabled = true;
-      cancelBtn.disabled = true;
-
-      try {
-        const sb = window.supabase;
-        if (!sb) throw new Error("Supabase client not found on window.supabase");
-
-        const { data, error } = await sb
-          .from('movies')
-          .update({ title: newTitle })
-          .eq('movie_id', ownedMovie.movie_id)
-          .select('movie_id,title');
-
-        if (error) throw error;
-        if (!data || data.length === 0) throw new Error("0 rows updated (blocked or mismatch).");
-
-        const updated = data[0];
-
-        const localMovie = movies.find(m => m.movie_id === updated.movie_id);
-        if (localMovie) localMovie.title = updated.title;
-
-        exitEditMovieMode();
-      } catch (err) {
-        console.error("Error updating movie title:", err);
-        alert(String(err?.message || "Failed to save movie title."));
-        submitBtn.disabled = false;
-        cancelBtn.disabled = false;
-      }
-    });
-
-    // UX
-    input.focus();
-    input.select();
-  }
-
-  function enterEditMode(member, round, roundMovies) {
-    console.log(`Entering edit mode for ${member.first_name}`);
-
-    const table = document.querySelector('.ratings-table');
-    const rateBtn = document.querySelector('#rate-btn');
-    const addMovieBtn = document.querySelector('#addMovie-btn');
-    const roundBtns = document.querySelector('#round-buttons-container');
-    const logoutBtn = document.querySelector('#logout-btn');
-
-    if (rateBtn) rateBtn.classList.add('hidden');
-    if (addMovieBtn) addMovieBtn.classList.add('hidden');
-    if (roundBtns) roundBtns.classList.add('hidden');
-    if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden per your preference
-
-    const row = [...table.querySelectorAll('tr')]
-      .find(tr => tr.querySelector('th')?.textContent === member.first_name);
-
-    if (!row) {
-      console.error("Could not find rating row for current member.");
-      displayRoundData(round);
-      if (roundBtns) roundBtns.classList.remove('hidden');
-      return;
-    }
-
-    // Only allow rating movies that actually have titles
-    const editableCells = [...row.querySelectorAll('td')].filter(td => {
-      const movieID = td.dataset.movieID;
-      const movie = roundMovies.find(m => m.movie_id === movieID);
-      return movie && movie.title && movie.title.trim() !== '';
-    });
-
-    editableCells.forEach(td => {
-      const currentValue = td.textContent === '-' ? '' : td.textContent;
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.min = 1;
-      input.max = 10;
-      input.step = 0.5; // optional: makes UI nicer
-      input.value = currentValue;
-      input.classList.add('rating-input');
+    if (shouldApplyBiasRule && currentUsersRatingNumeric === null && movieRatings.length > 0) {
+      td.textContent = '***';
+    } else if (movieRatings.length === 0) {
       td.textContent = '';
-      td.appendChild(input);
-    });
-
-    const submitBtn = document.createElement('button');
-    submitBtn.textContent = 'Submit Ratings';
-    submitBtn.classList.add('action-btn', 'submit-btn');
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.classList.add('action-btn', 'cancel-btn');
-
-    const container = document.querySelector('#round-data-container');
-    container.appendChild(submitBtn);
-    container.appendChild(cancelBtn);
-
-    function exitEditMode() {
-      container.innerHTML = '';
-      displayRoundData(round);
-      if (roundBtns) roundBtns.classList.remove('hidden');
-      // logout stays hidden
+    } else {
+      const sum = movieRatings.reduce((a, b) => a + b, 0);
+      const avg = sum / movieRatings.length;
+      td.textContent = formatNumber(avg, 2);
     }
 
-    cancelBtn.addEventListener('click', exitEditMode);
+    for (const v of movieRatings) {
+      overallSum += v;
+      overallCount += 1;
+    }
 
-    submitBtn.addEventListener('click', async () => {
-      submitBtn.disabled = true;
-      cancelBtn.disabled = true;
+    avgRow.appendChild(td);
+  });
 
-      try {
-        const sb = window.supabase;
-        if (!sb) throw new Error("Supabase client not found on window.supabase");
+  const overallCell = document.createElement('td');
+  if (overallCount === 0) {
+    overallCell.textContent = '';
+  } else {
+    overallCell.textContent = formatNumber(overallSum / overallCount, 3);
+  }
+  avgRow.appendChild(overallCell);
 
-        const updates = editableCells.map(td => {
-          const input = td.querySelector('input');
-          let score = parseFloat(input.value);
+  table.appendChild(avgRow);
 
-          if (isNaN(score)) return null;
+  // Render table
+  container.appendChild(table);
 
-          score = Math.min(Math.max(score, 1), 10);
-          score = Math.floor(score * 10) / 10;
+  // Buttons (same as before)
+  if (currentMember) {
+    const rateBtn = document.createElement('button');
+    const addMovieBtn = document.createElement('button');
 
-          // store as string for display consistency (your existing code does this)
-          const scoreOut = (score % 1 === 0) ? score.toFixed(0) : score.toString();
+    rateBtn.textContent = 'Rate My Movies';
+    addMovieBtn.textContent = 'Add My Movie';
 
-          const existing = ratings.find(r =>
-            r.movie_id === td.dataset.movieID &&
-            r.membership_id === member.membership_id
-          );
+    rateBtn.id = 'rate-btn';
+    addMovieBtn.id = 'addMovie-btn';
 
-          // If you ever have missing rows, switch to upsert (we can do later).
-          if (!existing) return null;
+    container.appendChild(rateBtn);
+    container.appendChild(addMovieBtn);
 
-          if (existing.score != scoreOut) {
-            return {
-              movie_id: td.dataset.movieID,
-              membership_id: member.membership_id,
-              score: scoreOut
-            };
-          }
+    rateBtn.addEventListener('click', () => {
+      enterEditMode(currentMember, round, roundMovies);
+    });
 
-          return null;
-        }).filter(Boolean);
+    addMovieBtn.addEventListener('click', () => {
+      enterEditMovieMode(currentMember, round, roundMovies);
+    });
+  }
+}
 
-        console.log(`✅ Submitted ${updates.length} ratings`);
+function enterEditMovieMode(member, round, roundMovies) {
+  console.log(`Entering edit movie mode for ${member.first_name}`);
 
-        for (const update of updates) {
-          const { error } = await sb
-            .from('ratings')
-            .update({ score: update.score })
-            .eq('movie_id', update.movie_id)
-            .eq('membership_id', update.membership_id);
+  const container = document.querySelector('#round-data-container');
 
-          if (error) throw error;
+  const rateBtn = document.querySelector('#rate-btn');
+  const addMovieBtn = document.querySelector('#addMovie-btn');
+  const roundBtns = document.querySelector('#round-buttons-container');
+  const logoutBtn = document.querySelector('#logout-btn');
 
-          const local = ratings.find(r =>
-            r.movie_id === update.movie_id &&
-            r.membership_id === update.membership_id
-          );
-          if (local) local.score = update.score;
+  // Hide other controls (your intended behavior)
+  if (rateBtn) rateBtn.classList.add('hidden');
+  if (addMovieBtn) addMovieBtn.classList.add('hidden');
+  if (roundBtns) roundBtns.classList.add('hidden');
+  if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden
+
+  // Identify the movie "owned" by this member (their nomination)
+  const ownedMovieIndex = roundMovies.findIndex(m => m.membership_id === member.membership_id);
+  if (ownedMovieIndex === -1) {
+    console.warn("No owned movie found for this member in this round.");
+    container.innerHTML = '';
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    return;
+  }
+
+  const ownedMovie = roundMovies[ownedMovieIndex];
+
+  // Find the movie title header cell for that movie
+  const movieRow = document.querySelector('#movieRow');
+  if (!movieRow) {
+    console.error("movieRow not found.");
+    container.innerHTML = '';
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    return;
+  }
+
+  // movieRow has leading blank <th>, then one <th> per movie
+  const movieHeaderCells = [...movieRow.querySelectorAll('th')];
+  const targetCell = movieHeaderCells[ownedMovieIndex + 1];
+
+  if (!targetCell) {
+    console.error("Target movie title cell not found.");
+    container.innerHTML = '';
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    return;
+  }
+
+  // Create input pre-filled with existing title
+  const previousTitle = (ownedMovie.title || '').toString();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = previousTitle;
+  input.classList.add('movie-title-input');
+  input.placeholder = 'Enter movie title';
+  input.autocomplete = 'off';
+
+  targetCell.textContent = '';
+  targetCell.appendChild(input);
+
+  // Create Submit / Cancel buttons for this mode
+  const submitBtn = document.createElement('button');
+  submitBtn.textContent = 'Submit Movie';
+  submitBtn.classList.add('action-btn', 'submit-btn');
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.classList.add('action-btn', 'cancel-btn');
+
+  container.appendChild(submitBtn);
+  container.appendChild(cancelBtn);
+
+  // Exit helper: re-render round view, restore buttons
+  function exitEditMovieMode() {
+    container.innerHTML = '';
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    // logout stays hidden
+  }
+
+  // Cancel: no DB update, just revert
+  cancelBtn.addEventListener('click', () => {
+    exitEditMovieMode();
+  });
+
+  // Submit: update DB + local cache, then revert UI
+  submitBtn.addEventListener('click', async () => {
+    const newTitle = (input.value || '').trim();
+
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+
+    try {
+      const sb = window.supabase;
+      if (!sb) throw new Error("Supabase client not found on window.supabase");
+
+      const { data, error } = await sb
+        .from('movies')
+        .update({ title: newTitle })
+        .eq('movie_id', ownedMovie.movie_id)
+        .select('movie_id,title');
+
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("0 rows updated (blocked or mismatch).");
+
+      const updated = data[0];
+
+      const localMovie = movies.find(m => m.movie_id === updated.movie_id);
+      if (localMovie) localMovie.title = updated.title;
+
+      exitEditMovieMode();
+    } catch (err) {
+      console.error("Error updating movie title:", err);
+      alert(String(err?.message || "Failed to save movie title."));
+      submitBtn.disabled = false;
+      cancelBtn.disabled = false;
+    }
+  });
+
+  // UX
+  input.focus();
+  input.select();
+}
+
+function enterEditMode(member, round, roundMovies) {
+  console.log(`Entering edit mode for ${member.first_name}`);
+
+  const table = document.querySelector('.ratings-table');
+  const rateBtn = document.querySelector('#rate-btn');
+  const addMovieBtn = document.querySelector('#addMovie-btn');
+  const roundBtns = document.querySelector('#round-buttons-container');
+  const logoutBtn = document.querySelector('#logout-btn');
+
+  if (rateBtn) rateBtn.classList.add('hidden');
+  if (addMovieBtn) addMovieBtn.classList.add('hidden');
+  if (roundBtns) roundBtns.classList.add('hidden');
+  if (logoutBtn) logoutBtn.classList.add('hidden'); // keep hidden per your preference
+
+  const row = [...table.querySelectorAll('tr')]
+    .find(tr => tr.querySelector('th')?.textContent === member.first_name);
+
+  if (!row) {
+    console.error("Could not find rating row for current member.");
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    return;
+  }
+
+  // Only allow rating movies that actually have titles
+  const editableCells = [...row.querySelectorAll('td')].filter(td => {
+    const movieID = td.dataset.movieID;
+    const movie = roundMovies.find(m => m.movie_id === movieID);
+    return movie && movie.title && movie.title.trim() !== '';
+  });
+
+  editableCells.forEach(td => {
+    const currentValue = td.textContent === '-' ? '' : td.textContent;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = 1;
+    input.max = 10;
+    input.step = 0.5; // optional: makes UI nicer
+    input.value = currentValue;
+    input.classList.add('rating-input');
+    td.textContent = '';
+    td.appendChild(input);
+  });
+
+  const submitBtn = document.createElement('button');
+  submitBtn.textContent = 'Submit Ratings';
+  submitBtn.classList.add('action-btn', 'submit-btn');
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.classList.add('action-btn', 'cancel-btn');
+
+  const container = document.querySelector('#round-data-container');
+  container.appendChild(submitBtn);
+  container.appendChild(cancelBtn);
+
+  function exitEditMode() {
+    container.innerHTML = '';
+    displayRoundData(round);
+    if (roundBtns) roundBtns.classList.remove('hidden');
+    // logout stays hidden
+  }
+
+  cancelBtn.addEventListener('click', exitEditMode);
+
+  submitBtn.addEventListener('click', async () => {
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+
+    try {
+      const sb = window.supabase;
+      if (!sb) throw new Error("Supabase client not found on window.supabase");
+
+      const updates = editableCells.map(td => {
+        const input = td.querySelector('input');
+        let score = parseFloat(input.value);
+
+        if (isNaN(score)) return null;
+
+        score = Math.min(Math.max(score, 1), 10);
+        score = Math.floor(score * 10) / 10;
+
+        // store as string for display consistency (your existing code does this)
+        const scoreOut = (score % 1 === 0) ? score.toFixed(0) : score.toString();
+
+        const existing = ratings.find(r =>
+          r.movie_id === td.dataset.movieID &&
+          r.membership_id === member.membership_id
+        );
+
+        // If you ever have missing rows, switch to upsert (we can do later).
+        if (!existing) return null;
+
+        if (existing.score != scoreOut) {
+          return {
+            movie_id: td.dataset.movieID,
+            membership_id: member.membership_id,
+            score: scoreOut
+          };
         }
 
-        exitEditMode();
-      } catch (err) {
-        console.error("Error updating ratings:", err);
-        alert("Failed to save ratings.");
-        submitBtn.disabled = false;
-        cancelBtn.disabled = false;
-      }
-    });
-  }
+        return null;
+      }).filter(Boolean);
 
-  function renderRoundButtons() {
-    const container = document.querySelector('#round-buttons-container')
-    container.innerHTML = ''
-    sortedRounds = [...rounds].sort((a,b) => {
-      if (a.version_number === b.version_number) {
-        return a.round_number - b.round_number
-      }
-      return a.version_number - b.version_number
-    })
+      console.log(`✅ Submitted ${updates.length} ratings`);
 
-    sortedRounds.forEach(round => {
-      const btn = document.createElement('button')
-      btn.textContent = `${round.version_number}.${round.round_number}`
-      btn.classList.add('round-btn')
-      btn.addEventListener('click', () => {
-        displayRoundData(round)
-      })
-      container.appendChild(btn)
+      for (const update of updates) {
+        const { error } = await sb
+          .from('ratings')
+          .update({ score: update.score })
+          .eq('movie_id', update.movie_id)
+          .eq('membership_id', update.membership_id);
+
+        if (error) throw error;
+
+        const local = ratings.find(r =>
+          r.movie_id === update.movie_id &&
+          r.membership_id === update.membership_id
+        );
+        if (local) local.score = update.score;
+      }
+
+      exitEditMode();
+    } catch (err) {
+      console.error("Error updating ratings:", err);
+      alert("Failed to save ratings.");
+      submitBtn.disabled = false;
+      cancelBtn.disabled = false;
+    }
+  });
+}
+
+function renderRoundButtons() {
+  const container = document.querySelector('#round-buttons-container')
+  container.innerHTML = ''
+  sortedRounds = [...rounds].sort((a,b) => {
+    if (a.version_number === b.version_number) {
+      return a.round_number - b.round_number
+    }
+    return a.version_number - b.version_number
+  })
+
+  sortedRounds.forEach(round => {
+    const btn = document.createElement('button')
+    btn.textContent = `${round.version_number}.${round.round_number}`
+    btn.classList.add('round-btn')
+    btn.addEventListener('click', () => {
+      displayRoundData(round)
     })
-  }
+    container.appendChild(btn)
+  })
+}
