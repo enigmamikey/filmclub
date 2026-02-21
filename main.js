@@ -62,13 +62,18 @@ function displayRoundData(round) {
 
   // logged-in member for THIS round (null if user not part of that round/version)
   const currentMember = roundMembers.find(m => m.email === window.currentUser?.email);
+
   const biasModeOn = getBiasMode();
 
   // Only apply the *** rule if the logged-in user is a member of this round
   const shouldApplyBiasRule = !!currentMember && biasModeOn;
 
+  function viewerHasRatedMovie(movie_id) {
+    if (!currentMember) return false;
+    return getNumericRating(currentMember.membership_id, movie_id) !== null;
+  }
+
   // ---------- toggle button ----------
-  // Put it at the top of the round-data container (you said placement doesn’t matter for now)
   const toggleBtn = document.createElement('button');
   toggleBtn.id = 'bias-toggle-btn';
   toggleBtn.textContent = `Bias toggle: ${biasModeOn ? 'ON' : 'OFF'}`;
@@ -77,7 +82,6 @@ function displayRoundData(round) {
 
   toggleBtn.addEventListener('click', () => {
     setBiasMode(!getBiasMode());
-    // re-render same round
     displayRoundData(window.currentRound);
   });
 
@@ -85,7 +89,7 @@ function displayRoundData(round) {
   const table = document.createElement('table');
   table.classList.add('ratings-table');
 
-  // Picker row
+  // Picker row (top)
   const pickerRow = document.createElement('tr');
   pickerRow.appendChild(document.createElement('th'));
   pickerRow.id = 'pickerRow';
@@ -101,7 +105,7 @@ function displayRoundData(round) {
   pickerRow.appendChild(document.createElement('th'));
   table.appendChild(pickerRow);
 
-  // Movie title row (also shows "Rating Count" header at far right)
+  // Movie title row (second row)
   const movieRow = document.createElement('tr');
   movieRow.appendChild(document.createElement('th'));
   movieRow.id = 'movieRow';
@@ -118,7 +122,7 @@ function displayRoundData(round) {
 
   table.appendChild(movieRow);
 
-  // Member rows
+  // Member rating rows
   roundMembers.forEach(member => {
     const tr = document.createElement('tr');
 
@@ -136,36 +140,27 @@ function displayRoundData(round) {
         r.movie_id === movie.movie_id
       );
 
-      // Determine whether current user has rated this movie
-      const currentUsersRatingNumeric = currentMember
-        ? getNumericRating(currentMember.membership_id, movie.movie_id)
-        : null;
+      const thisMemberNumeric = getNumericRating(member.membership_id, movie.movie_id);
+      if (thisMemberNumeric !== null) countRated += 1;
 
       const otherMemberHasRating = rating && rating.score !== null && rating.score !== '';
 
-      // *** RULE:
-      // If bias mode is ON and the viewer is a member of this round:
-      // - for other people's rows, hide the score unless viewer has rated that movie
+      // Hide other people's rating values until viewer has rated that movie
       if (
         shouldApplyBiasRule &&
         currentMember &&
         member.membership_id !== currentMember.membership_id &&
-        currentUsersRatingNumeric === null &&
+        !viewerHasRatedMovie(movie.movie_id) &&
         otherMemberHasRating
       ) {
         td.textContent = '***';
       } else {
-        // Normal behavior
         td.textContent = rating ? rating.score : '-';
       }
 
       td.dataset.movieID = movie.movie_id;
       td.dataset.memberID = member.membership_id;
       tr.appendChild(td);
-
-      // rating count is always based on the true numeric value (not what is displayed)
-      const numeric = getNumericRating(member.membership_id, movie.movie_id);
-      if (numeric !== null) countRated += 1;
     });
 
     const countCell = document.createElement('td');
@@ -175,7 +170,7 @@ function displayRoundData(round) {
     table.appendChild(tr);
   });
 
-  // Average row (bottom row) + bottom-right overall average
+  // Average row (bottom)
   const avgRow = document.createElement('tr');
 
   const avgLabel = document.createElement('th');
@@ -192,30 +187,27 @@ function displayRoundData(round) {
       .map(m => getNumericRating(m.membership_id, movie.movie_id))
       .filter(v => v !== null);
 
-    // If bias mode is ON and viewer is a member of this round,
-    // hide the average for movies the viewer has NOT rated yet.
-    const currentUsersRatingNumeric = currentMember
-      ? getNumericRating(currentMember.membership_id, movie.movie_id)
-      : null;
+    // contribute to overall
+    for (const v of movieRatings) {
+      overallSum += v;
+      overallCount += 1;
+    }
 
-    if (shouldApplyBiasRule && currentUsersRatingNumeric === null && movieRatings.length > 0) {
-      td.textContent = '***';
-    } else if (movieRatings.length === 0) {
+    // If bias mode applies: hide per-movie average until viewer rates that movie
+    if (movieRatings.length === 0) {
       td.textContent = '';
+    } else if (shouldApplyBiasRule && !viewerHasRatedMovie(movie.movie_id)) {
+      td.textContent = '***';
     } else {
       const sum = movieRatings.reduce((a, b) => a + b, 0);
       const avg = sum / movieRatings.length;
       td.textContent = formatNumber(avg, 2);
     }
 
-    for (const v of movieRatings) {
-      overallSum += v;
-      overallCount += 1;
-    }
-
     avgRow.appendChild(td);
   });
 
+  // bottom-right overall avg (left visible unless you tell me otherwise)
   const overallCell = document.createElement('td');
   if (overallCount === 0) {
     overallCell.textContent = '';
@@ -226,10 +218,10 @@ function displayRoundData(round) {
 
   table.appendChild(avgRow);
 
-  // Render table
+  // Render
   container.appendChild(table);
 
-  // Buttons (same as before)
+  // Buttons (only if you're a member of this round)
   if (currentMember) {
     const rateBtn = document.createElement('button');
     const addMovieBtn = document.createElement('button');
