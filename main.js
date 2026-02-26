@@ -1,3 +1,4 @@
+const ADMIN_EMAIL = 'mikeburgher2@gmail.com';
 document.querySelector('h1').textContent = 'Film Club'
 
 let sortedRounds
@@ -15,7 +16,6 @@ window.addEventListener('dataLoaded', () => {
 
   onDataLoaded()
 });
-
 
 if (window.rounds && window.members && window.movies && window.ratings) {
   onDataLoaded();
@@ -504,22 +504,175 @@ function enterEditMode(member, round, roundMovies) {
 }
 
 function renderRoundButtons() {
-  const container = document.querySelector('#round-buttons-container')
-  container.innerHTML = ''
-  sortedRounds = [...rounds].sort((a,b) => {
+  const container = document.querySelector('#round-buttons-container');
+  container.innerHTML = '';
+
+  sortedRounds = [...rounds].sort((a, b) => {
     if (a.version_number === b.version_number) {
-      return a.round_number - b.round_number
+      return a.round_number - b.round_number;
     }
-    return a.version_number - b.version_number
-  })
+    return a.version_number - b.version_number;
+  });
 
   sortedRounds.forEach(round => {
-    const btn = document.createElement('button')
-    btn.textContent = `${round.version_number}.${round.round_number}`
-    btn.classList.add('round-btn')
+    const btn = document.createElement('button');
+    btn.textContent = `${round.version_number}.${round.round_number}`;
+    btn.classList.add('round-btn');
     btn.addEventListener('click', () => {
-      displayRoundData(round)
+      displayRoundData(round);
+    });
+    container.appendChild(btn);
+  });
+
+  // ----- Admin-only New Round button -----
+  const ADMIN_EMAIL = 'PUT_YOUR_EMAIL_HERE'; // <-- set this once
+
+  if (window.currentUser?.email && window.currentUser.email === ADMIN_EMAIL) {
+    const newRoundBtn = document.createElement('button');
+    newRoundBtn.id = 'new-round-btn';
+    newRoundBtn.textContent = 'New Round';
+    newRoundBtn.classList.add('round-btn');
+
+    newRoundBtn.addEventListener('click', async () => {
+      newRoundBtn.disabled = true;
+      try {
+        const latestRound = sortedRounds[sortedRounds.length - 1];
+        await createNewRoundFromPrevious(latestRound);
+      } catch (err) {
+        console.error('New Round error:', err);
+        alert(String(err?.message || err || 'Failed to create new round.'));
+      } finally {
+        newRoundBtn.disabled = false;
+      }
+    });
+
+    container.appendChild(newRoundBtn);
+  }
+}
+
+function shuffleInPlace(arr) {
+  // Fisher–Yates shuffle (uniform)
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function getNumericRating(membership_id, movie_id) {
+  const r = ratings.find(x => x.membership_id === membership_id && x.movie_id === movie_id);
+  if (!r) return null;
+  const v = parseFloat(r.score);
+  return Number.isNaN(v) ? null : v;
+}
+
+function getEligiblePickers(prevRound) {
+  const prevMovies = movies
+    .filter(m => m.round_id == prevRound.round_id)
+    .sort((a, b) => a.position - b.position);
+
+  const versionMembers = members
+    .filter(m => m.version_number == prevRound.version_number);
+
+  const required = Math.ceil(prevMovies.length / 2); // “at least half”
+
+  const eligible = versionMembers.filter(member => {
+    let count = 0;
+    for (const movie of prevMovies) {
+      const v = getNumericRating(member.membership_id, movie.movie_id);
+      if (v !== null) count += 1;
+    }
+    return count >= required;
+  });
+
+  return eligible;
+}
+
+async function insertInChunks(sb, tableName, rows, chunkSize = 500) {
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const { error } = await sb.from(tableName).insert(chunk);
+    if (error) throw error;
+  }
+}
+
+async function createNewRoundFromPrevious(prevRound) {
+  const sb = window.supabase;
+  if (!sb) throw new Error('Supabase client not found on window.supabase');
+
+  // 1) Determine new round number within the same version
+  const versionRounds = rounds
+    .filter(r => r.version_number == prevRound.version_number)
+    .sort((a, b) => a.round_number - b.round_number);
+
+  const latest = versionRounds[versionRounds.length - 1];
+  const newRoundNumber = latest.round_number + 1;
+
+  // 2) Determine eligible pickers from the previous round
+  const eligiblePickers = getEligiblePickers(prevRound);
+  if (eligiblePickers.length === 0) {
+    throw new Error('No eligible pickers found (nobody rated at least half in the previous round).');
+  }
+
+  // Randomize picker order uniformly
+  const shuffledPickers = shuffleInPlace([...eligiblePickers]);
+
+  // 3) Create the new round row
+  const { data: roundData, error: roundErr } = await sb
+    .from('rounds')
+    .insert({
+      version_number: prevRound.version_number,
+      round_number: newRoundNumber
     })
-    container.appendChild(btn)
-  })
+    .select('*');
+
+  if (roundErr) throw roundErr;
+  if (!roundData || roundData.length === 0) throw new Error('Round insert returned no row.');
+
+  const newRound = roundData[0];
+
+  // 4) Create movies: one per eligible picker, positions 1..N
+  const movieRows = shuffledPickers.map((picker, idx) => ({
+    round_id: newRound.round_id,
+    membership_id: picker.membership_id,
+    position: idx + 1,
+    title: '' // empty until picker enters it
+  }));
+
+  const { data: newMovies, error: moviesErr } = await sb
+    .from('movies')
+    .insert(movieRows)
+    .select('movie_id,round_id,membership_id,position,title');
+
+  if (moviesErr) throw moviesErr;
+  if (!newMovies || newMovies.length !== movieRows.length) {
+    throw new Error('Movies insert returned unexpected result.');
+  }
+
+  // 5) Create ratings: every member in version × every new movie
+  const versionMembers = members.filter(m => m.version_number == prevRound.version_number);
+
+  const ratingRows = [];
+  for (const member of versionMembers) {
+    for (const mv of newMovies) {
+      ratingRows.push({
+        membership_id: member.membership_id,
+        movie_id: mv.movie_id,
+        score: null
+      });
+    }
+  }
+
+  await insertInChunks(sb, 'ratings', ratingRows, 500);
+
+  // 6) Update local in-memory arrays so UI can render immediately
+  rounds.push(newRound);
+  for (const mv of newMovies) movies.push(mv);
+
+  // Also update local ratings cache (match what the DB now has)
+  for (const rr of ratingRows) ratings.push(rr);
+
+  // 7) Refresh UI: buttons + show new round
+  renderRoundButtons();
+  displayRoundData(newRound);
 }
