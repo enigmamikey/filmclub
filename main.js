@@ -1,4 +1,3 @@
-const ADMIN_EMAIL = 'mikeburgher2@gmail.com';
 document.querySelector('h1').textContent = 'Film Club'
 
 let sortedRounds
@@ -508,9 +507,7 @@ function renderRoundButtons() {
   container.innerHTML = '';
 
   sortedRounds = [...rounds].sort((a, b) => {
-    if (a.version_number === b.version_number) {
-      return a.round_number - b.round_number;
-    }
+    if (a.version_number === b.version_number) return a.round_number - b.round_number;
     return a.version_number - b.version_number;
   });
 
@@ -518,16 +515,14 @@ function renderRoundButtons() {
     const btn = document.createElement('button');
     btn.textContent = `${round.version_number}.${round.round_number}`;
     btn.classList.add('round-btn');
-    btn.addEventListener('click', () => {
-      displayRoundData(round);
-    });
+    btn.addEventListener('click', () => displayRoundData(round));
     container.appendChild(btn);
   });
 
-  // ----- Admin-only New Round button -----
-  const ADMIN_EMAIL = 'PUT_YOUR_EMAIL_HERE'; // <-- set this once
+  // --- Admin-only New Round button ---
+  const ADMIN_EMAIL = 'mikeburgher2@gmail.com'; // <-- set this
 
-  if (window.currentUser?.email && window.currentUser.email === ADMIN_EMAIL) {
+  if (window.currentUser?.email === ADMIN_EMAIL) {
     const newRoundBtn = document.createElement('button');
     newRoundBtn.id = 'new-round-btn';
     newRoundBtn.textContent = 'New Round';
@@ -551,7 +546,6 @@ function renderRoundButtons() {
 }
 
 function shuffleInPlace(arr) {
-  // Fisher–Yates shuffle (uniform)
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -559,7 +553,7 @@ function shuffleInPlace(arr) {
   return arr;
 }
 
-function getNumericRating(membership_id, movie_id) {
+function getNumericRatingGlobal(membership_id, movie_id) {
   const r = ratings.find(x => x.membership_id === membership_id && x.movie_id === movie_id);
   if (!r) return null;
   const v = parseFloat(r.score);
@@ -571,21 +565,17 @@ function getEligiblePickers(prevRound) {
     .filter(m => m.round_id == prevRound.round_id)
     .sort((a, b) => a.position - b.position);
 
-  const versionMembers = members
-    .filter(m => m.version_number == prevRound.version_number);
+  const versionMembers = members.filter(m => m.version_number == prevRound.version_number);
 
-  const required = Math.ceil(prevMovies.length / 2); // “at least half”
+  const required = Math.ceil(prevMovies.length / 2);
 
-  const eligible = versionMembers.filter(member => {
+  return versionMembers.filter(member => {
     let count = 0;
     for (const movie of prevMovies) {
-      const v = getNumericRating(member.membership_id, movie.movie_id);
-      if (v !== null) count += 1;
+      if (getNumericRatingGlobal(member.membership_id, movie.movie_id) !== null) count += 1;
     }
     return count >= required;
   });
-
-  return eligible;
 }
 
 async function insertInChunks(sb, tableName, rows, chunkSize = 500) {
@@ -600,7 +590,7 @@ async function createNewRoundFromPrevious(prevRound) {
   const sb = window.supabase;
   if (!sb) throw new Error('Supabase client not found on window.supabase');
 
-  // 1) Determine new round number within the same version
+  // new round number within same version
   const versionRounds = rounds
     .filter(r => r.version_number == prevRound.version_number)
     .sort((a, b) => a.round_number - b.round_number);
@@ -608,22 +598,19 @@ async function createNewRoundFromPrevious(prevRound) {
   const latest = versionRounds[versionRounds.length - 1];
   const newRoundNumber = latest.round_number + 1;
 
-  // 2) Determine eligible pickers from the previous round
+  // eligible pickers from previous round
   const eligiblePickers = getEligiblePickers(prevRound);
   if (eligiblePickers.length === 0) {
-    throw new Error('No eligible pickers found (nobody rated at least half in the previous round).');
+    throw new Error('No eligible pickers found (nobody rated at least half last round).');
   }
 
-  // Randomize picker order uniformly
+  // uniform shuffle for picker order → determines movie.position 1..N
   const shuffledPickers = shuffleInPlace([...eligiblePickers]);
 
-  // 3) Create the new round row
+  // insert round
   const { data: roundData, error: roundErr } = await sb
     .from('rounds')
-    .insert({
-      version_number: prevRound.version_number,
-      round_number: newRoundNumber
-    })
+    .insert({ version_number: prevRound.version_number, round_number: newRoundNumber })
     .select('*');
 
   if (roundErr) throw roundErr;
@@ -631,12 +618,12 @@ async function createNewRoundFromPrevious(prevRound) {
 
   const newRound = roundData[0];
 
-  // 4) Create movies: one per eligible picker, positions 1..N
+  // insert movies (one per eligible picker)
   const movieRows = shuffledPickers.map((picker, idx) => ({
     round_id: newRound.round_id,
     membership_id: picker.membership_id,
     position: idx + 1,
-    title: '' // empty until picker enters it
+    title: ''
   }));
 
   const { data: newMovies, error: moviesErr } = await sb
@@ -649,7 +636,7 @@ async function createNewRoundFromPrevious(prevRound) {
     throw new Error('Movies insert returned unexpected result.');
   }
 
-  // 5) Create ratings: every member in version × every new movie
+  // insert ratings (every member in version × every new movie)
   const versionMembers = members.filter(m => m.version_number == prevRound.version_number);
 
   const ratingRows = [];
@@ -665,14 +652,12 @@ async function createNewRoundFromPrevious(prevRound) {
 
   await insertInChunks(sb, 'ratings', ratingRows, 500);
 
-  // 6) Update local in-memory arrays so UI can render immediately
+  // update local caches
   rounds.push(newRound);
-  for (const mv of newMovies) movies.push(mv);
+  newMovies.forEach(mv => movies.push(mv));
+  ratingRows.forEach(rr => ratings.push(rr));
 
-  // Also update local ratings cache (match what the DB now has)
-  for (const rr of ratingRows) ratings.push(rr);
-
-  // 7) Refresh UI: buttons + show new round
+  // refresh UI
   renderRoundButtons();
   displayRoundData(newRound);
 }
