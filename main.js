@@ -52,6 +52,31 @@ function displayRoundData(round) {
     return parseFloat(fixed).toString(); // removes trailing zeros
   }
 
+  // CURRENT MOVIE = highest movie index (m001, m002, ...) that has a non-empty title
+  function parseMovieIndex(movie_id) {
+    // expects "m001" style
+    const n = parseInt(String(movie_id || '').slice(1), 10);
+    return Number.isFinite(n) ? n : -1;
+  }
+
+  function getCurrentMovieId() {
+    let bestId = null;
+    let bestIdx = -1;
+
+    for (const m of movies) {
+      const hasTitle = m?.title && String(m.title).trim() !== '';
+      if (!hasTitle) continue;
+      const idx = parseMovieIndex(m.movie_id);
+      if (idx > bestIdx) {
+        bestIdx = idx;
+        bestId = m.movie_id;
+      }
+    }
+    return bestId; // can be null if no titles exist anywhere
+  }
+
+  const currentMovieId = getCurrentMovieId();
+
   const BIAS_KEY = 'filmclub_hide_others_until_rated';
   function getBiasMode() {
     return localStorage.getItem(BIAS_KEY) === 'true';
@@ -62,7 +87,6 @@ function displayRoundData(round) {
 
   // logged-in member for THIS round (null if user not part of that round/version)
   const currentMember = roundMembers.find(m => m.email === window.currentUser?.email);
-
   const biasModeOn = getBiasMode();
 
   // Only apply the *** rule if the logged-in user is a member of this round
@@ -119,13 +143,11 @@ function displayRoundData(round) {
   const ratingCountHeader = document.createElement('th');
   ratingCountHeader.textContent = 'Rating Count';
   movieRow.appendChild(ratingCountHeader);
-
   table.appendChild(movieRow);
 
   // Member rating rows
   roundMembers.forEach(member => {
     const tr = document.createElement('tr');
-
     const nameCell = document.createElement('th');
     nameCell.textContent = member.first_name;
     tr.appendChild(nameCell);
@@ -136,8 +158,7 @@ function displayRoundData(round) {
       const td = document.createElement('td');
 
       const rating = ratings.find(r =>
-        r.membership_id === member.membership_id &&
-        r.movie_id === movie.movie_id
+        r.membership_id === member.membership_id && r.movie_id === movie.movie_id
       );
 
       const thisMemberNumeric = getNumericRating(member.membership_id, movie.movie_id);
@@ -146,20 +167,36 @@ function displayRoundData(round) {
       const otherMemberHasRating = rating && rating.score !== null && rating.score !== '';
 
       // Hide other people's rating values until viewer has rated that movie
-      if (
+      const shouldHideWithStars =
         shouldApplyBiasRule &&
         currentMember &&
         member.membership_id !== currentMember.membership_id &&
         !viewerHasRatedMovie(movie.movie_id) &&
-        otherMemberHasRating
-      ) {
+        otherMemberHasRating;
+
+      if (shouldHideWithStars) {
         td.textContent = '***';
       } else {
         td.textContent = rating ? rating.score : '-';
       }
 
+      // --- Missing rating highlight rules ---
+      // Only highlight if:
+      // (1) movie has a title (otherwise ratings are not expected)
+      // (2) movie is NOT the current movie (highest indexed titled movie)
+      // (3) this member has no numeric rating for that movie
+      // (4) we are NOT showing "***" (hidden)
+      const movieHasTitle = movie.title && String(movie.title).trim() !== '';
+      const isCurrentMovie = currentMovieId && movie.movie_id === currentMovieId;
+      const isMissingForThisMember = thisMemberNumeric === null;
+
+      if (td.textContent !== '***' && movieHasTitle && !isCurrentMovie && isMissingForThisMember) {
+        td.classList.add('missing-rating');
+      }
+
       td.dataset.movieID = movie.movie_id;
       td.dataset.memberID = member.membership_id;
+
       tr.appendChild(td);
     });
 
@@ -172,7 +209,6 @@ function displayRoundData(round) {
 
   // Average row (bottom)
   const avgRow = document.createElement('tr');
-
   const avgLabel = document.createElement('th');
   avgLabel.textContent = 'Average';
   avgRow.appendChild(avgLabel);
@@ -207,7 +243,7 @@ function displayRoundData(round) {
     avgRow.appendChild(td);
   });
 
-  // bottom-right overall avg (left visible unless you tell me otherwise)
+  // bottom-right overall avg
   const overallCell = document.createElement('td');
   if (overallCount === 0) {
     overallCell.textContent = '';
