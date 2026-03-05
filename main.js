@@ -539,23 +539,57 @@ function enterEditMode(member, round, roundMovies) {
   });
 }
 
-function renderRoundButtons() {
-  const container = document.querySelector('#round-buttons-container')
-  container.innerHTML = ''
-  sortedRounds = [...rounds].sort((a,b) => {
-    if (a.version_number === b.version_number) {
-      return a.round_number - b.round_number
-    }
-    return a.version_number - b.version_number
-  })
+function showAnalyticsView() {
+  window.currentView = 'analytics';
 
+  const container = document.querySelector('#round-data-container');
+  const title = document.querySelector('#round-title');
+
+  if (title) title.textContent = 'Analytics';
+  if (container) {
+    container.innerHTML = '';
+
+    const msg = document.createElement('div');
+    msg.textContent = 'This is where the analyitics will go';
+    container.appendChild(msg);
+  }
+}
+
+function renderRoundButtons() {
+  const container = document.querySelector('#round-buttons-container');
+  container.innerHTML = '';
+
+  // Sort rounds in display order
+  sortedRounds = [...rounds].sort((a, b) => {
+    if (a.version_number === b.version_number) {
+      return a.round_number - b.round_number;
+    }
+    return a.version_number - b.version_number;
+  });
+
+  // Round buttons
   sortedRounds.forEach(round => {
-    const btn = document.createElement('button')
-    btn.textContent = `${round.version_number}.${round.round_number}`
-    btn.classList.add('round-btn')
+    const btn = document.createElement('button');
+    btn.textContent = `${round.version_number}.${round.round_number}`;
+    btn.classList.add('round-btn');
     btn.addEventListener('click', () => {
-      displayRoundData(round)
-    })
-    container.appendChild(btn)
-  })
+      window.currentView = 'round';
+      displayRoundData(round);
+    });
+    container.appendChild(btn);
+  });
+
+  // Analytics button (only when logged in)
+  if (window.currentUser) {
+    const analyticsBtn = document.createElement('button');
+    analyticsBtn.id = 'analytics-btn';
+    analyticsBtn.textContent = 'Analytics';
+    analyticsBtn.classList.add('round-btn');
+
+    analyticsBtn.addEventListener('click', () => {
+      showAnalyticsView();
+    });
+
+    container.appendChild(analyticsBtn);
+  }
 }
